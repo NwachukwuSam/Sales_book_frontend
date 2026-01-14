@@ -32,7 +32,7 @@ const handleLogin = async (e) => {
       // redirect or update UI as needed
     } else {
       setErrorMessage(data.message || "Login failed");
-      setShowErrorModal(true);
+      setShowErrorModal(true);clearImmediate
     }
   } catch (error) {
     setErrorMessage("Something went wrong. Please try again.");

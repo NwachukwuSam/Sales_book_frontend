@@ -105,13 +105,13 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-40
-        w-64 bg-gradient-to-b from-blue-900 to-blue-800
+        w-64 bg-gradient-to-b from-green-700 to-green-800
         transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
         lg:translate-x-0 transition-transform duration-300
         flex flex-col
       `}>
         {/* Logo */}
-        <div className="p-6 border-b border-blue-700">
+        <div className="p-6 border-b border-green-400">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
              <img src={logo} alt="logo" />
@@ -131,8 +131,8 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
                 w-full flex items-center space-x-3 px-4 py-3 rounded-lg
                 transition-all duration-200
                 ${activeSection === item.id
-                  ? 'bg-blue-700 text-white shadow-lg'
-                  : 'text-blue-200 hover:bg-blue-700/50 hover:text-white'
+                  ? 'bg-white text-green-600 shadow-lg'
+                  : 'text-white hover:bg-green-400 hover:text-white hover:cursor-pointer'
                 }
               `}
             >
@@ -143,11 +143,11 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
         </nav>
 
         {/* Logout button */}
-        <div className="p-4 border-t border-blue-700">
+        <div className="p-4 border-t border-green-300">
           <button 
             className="
               w-full flex items-center space-x-3 px-4 py-3 rounded-lg
-              text-blue-200 hover:bg-blue-700/50 hover:text-white
+              text-red-400 hover:bg-red-700/50 hover:text-white hover:cursor-pointer
               transition-all duration-200
             "
             onClick={() => {

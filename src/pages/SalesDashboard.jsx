@@ -26,6 +26,7 @@ import {
   ArrowUp,
   ShoppingCart
 } from 'lucide-react';
+import TopNav from '../components/TopNav';
 
 const SalesDashboard = () => {
   const stats = [
@@ -100,9 +101,9 @@ const SalesDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       {/* Header */}
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Dashboard Overview</h1>
-        <p className="text-gray-600 mt-2">Welcome back! Here's what's happening with your store today.</p>
+      <TopNav/>
+      <header className="mb-7 mt-6">
+        <p className="text-gray-600 mt-2">Here's what's happening with your store today.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

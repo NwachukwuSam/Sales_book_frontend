@@ -1,12 +1,15 @@
 // components/Analytics.jsx
 import React from 'react';
 import { BarChart3, TrendingUp, Users, DollarSign } from 'lucide-react';
+import TopNav from '../TopNav';
 
 const Analytics = () => {
   return (
     <div className="p-6">
+        <TopNav/>
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Analytics Dashboard</h1>
+        
+        
         <p className="text-gray-600 mt-2">Deep insights and performance metrics</p>
       </header>
 
