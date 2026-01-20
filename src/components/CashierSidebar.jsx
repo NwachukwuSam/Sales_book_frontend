@@ -1,4 +1,3 @@
-// components/CashierSidebar.jsx
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -22,7 +21,6 @@ const CashierSidebar = ({ activeSection, setActiveSection }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Cashier-specific menu items
   const menuItems = [
     { 
       id: 'dashboard', 

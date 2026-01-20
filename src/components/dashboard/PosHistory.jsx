@@ -1,16 +1,3 @@
-// import React from 'react'
-// import TopNav from '../TopNav'
-
-// function PosHistory() {
-//   return (
-//     <div>
-//       <TopNav/>
-//     </div>
-//   )
-// }
-
-// export default PosHistory
-
 import { Import } from 'lucide-react';
 import React, { useState } from 'react';
 import TopNav from '../TopNav';
