@@ -1,9 +1,8 @@
-// components/Sidebar.jsx
+// components/CashierSidebar.jsx
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
-  BarChart3,
   ShoppingCart,
   Package,
   History,
@@ -12,64 +11,72 @@ import {
   LogOut,
   Menu,
   X,
-  Users,
-  ShoppingBag
+  Receipt,
+  DollarSign,
+  Clock
 } from 'lucide-react';
 import logo from '../assets/singleLogo.png';
 
-const Sidebar = ({ activeSection, setActiveSection }) => {
+const CashierSidebar = ({ activeSection, setActiveSection }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Cashier-specific menu items
   const menuItems = [
     { 
       id: 'dashboard', 
       label: 'Dashboard', 
       icon: <LayoutDashboard className="w-5 h-5" />,
-      path: '/admin-dashboard'
+      path: '/cashier-dashboard'
     },
     { 
-      id: 'analytics', 
-      label: 'Analytics', 
-      icon: <BarChart3 className="w-5 h-5" />,
-      path: '/analytics'
+      id: 'pos', 
+      label: 'POS System', 
+      icon: <ShoppingCart className="w-5 h-5" />,
+      path: '/pos'
+    },
+    { 
+      id: 'quick-sale', 
+      label: 'Quick Sale', 
+      icon: <DollarSign className="w-5 h-5" />,
+      path: '/quick-sale'
     },
     { 
       id: 'inventory', 
       label: 'Inventory', 
       icon: <Package className="w-5 h-5" />,
-      path: '/inventory'
+      path: '/cashier-inventory'
     },
     { 
-      id: 'history', 
-      label: 'Sales History', 
+      id: 'sales-history', 
+      label: 'My Sales', 
       icon: <History className="w-5 h-5" />,
-      path: '/sales-history'
+      path: '/cashier-sales-history'
     },
     { 
-      id: 'posHistory', 
-      label: 'POS History', 
-      icon: <FileText className="w-5 h-5" />,
-      path: '/pos-history'
+      id: 'today-transactions', 
+      label: 'Today\'s Transactions', 
+      icon: <Clock className="w-5 h-5" />,
+      path: '/today-transactions'
+    },
+    { 
+      id: 'receipts', 
+      label: 'Receipts', 
+      icon: <Receipt className="w-5 h-5" />,
+      path: '/receipts'
     },
     { 
       id: 'reports', 
-      label: 'Reports', 
+      label: 'Daily Report', 
       icon: <FileText className="w-5 h-5" />,
-      path: '/reports'
-    },
-    { 
-      id: 'users', 
-      label: 'Users', 
-      icon: <Users className="w-5 h-5" />,
-      path: '/users'
+      path: '/cashier-report'
     },
     { 
       id: 'settings', 
-      label: 'Settings', 
+      label: 'My Settings', 
       icon: <Settings className="w-5 h-5" />,
-      path: '/user-roles'
+      path: '/cashier-settings'
     },
   ];
 
@@ -105,20 +112,24 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-40
-        w-64 bg-gradient-to-b from-green-700 to-green-800
+        w-64 bg-gradient-to-b from-blue-700 to-blue-800
         transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
         lg:translate-x-0 transition-transform duration-300
         flex flex-col
       `}>
         {/* Logo */}
-        <div className="p-6 border-b border-green-400">
+        <div className="p-6 border-b border-blue-400">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
              <img src={logo} alt="logo" />
             </div>
             <h1 className="text-white text-2xl font-bold">PASORIDO</h1>
           </div>
-          <p className="text-blue-200 text-sm mt-2">Admin Panel</p>
+          <p className="text-blue-200 text-sm mt-2">Cashier Panel</p>
+          {/* Optional: Show cashier name */}
+          <div className="mt-1 text-white text-sm font-medium">
+            Welcome, Cashier!
+          </div>
         </div>
 
         {/* Navigation */}
@@ -131,8 +142,8 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
                 w-full flex items-center space-x-3 px-4 py-3 rounded-lg
                 transition-all duration-200
                 ${activeSection === item.id
-                  ? 'bg-white text-green-600 shadow-lg'
-                  : 'text-white hover:bg-green-400 hover:text-white hover:cursor-pointer'
+                  ? 'bg-white text-blue-600 shadow-lg'
+                  : 'text-white hover:bg-blue-400 hover:text-white hover:cursor-pointer'
                 }
               `}
             >
@@ -142,8 +153,15 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
           ))}
         </nav>
 
-        {/* Logout button */}
-        <div className="p-4 border-t border-green-300">
+        {/* Cashier info and logout */}
+        <div className="p-4 border-t border-blue-300 space-y-4">
+          {/* Cashier shift info (optional) */}
+          <div className="text-white text-sm p-2 bg-blue-600/50 rounded">
+            <div className="font-medium">Shift: 9:00 AM - 5:00 PM</div>
+            <div className="text-xs text-blue-200">Status: Active</div>
+          </div>
+          
+          {/* Logout button */}
           <button 
             className="
               w-full flex items-center space-x-3 px-4 py-3 rounded-lg
@@ -151,12 +169,13 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
               transition-all duration-200
             "
             onClick={() => {
-              // Add logout logic here
-              console.log('Logout clicked');
+              // Add cashier-specific logout logic here
+              console.log('Cashier logout clicked');
+              // Example: End shift and logout
             }}
           >
             <LogOut className="w-5 h-5" />
-            <span className="font-medium">Logout</span>
+            <span className="font-medium">End Shift & Logout</span>
           </button>
         </div>
       </aside>
@@ -172,4 +191,4 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
   );
 };
 
-export default Sidebar;
+export default CashierSidebar;

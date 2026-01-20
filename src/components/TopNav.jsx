@@ -7,13 +7,45 @@ const TopNav = () => {
   const [messageCount, setMessageCount] = useState(2);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
 
-  // Sample user data
-  const user = {
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John'
+useEffect(() => {
+  const fetchUser = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        setIsLoadingUser(false);
+        return;
+      }
+
+      const response = await fetch(
+        "https://sales-system-production.up.railway.app/api/auth/me",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to fetch user");
+
+      const data = await response.json();
+      console.log("ME RESPONSE:", data);
+
+      setUser(data.user || data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoadingUser(false);
+    }
   };
+
+  fetchUser();
+}, []);
+
+
 
   // Sample notifications
   const notifications = [
@@ -103,10 +135,10 @@ const TopNav = () => {
   };
 
   const handleLogout = () => {
-    console.log('Logging out...');
-    setIsProfileOpen(false);
-    // Implement logout functionality
-  };
+  localStorage.removeItem("token");
+  window.location.href = "/login";
+};
+
 
   return (
     <nav className="topnav" onClick={() => {
@@ -115,8 +147,10 @@ const TopNav = () => {
     }}>
       <div className="topnav-left">
         <div className="logo flex" onClick={handleLogoClick}>
-          <p className="text-gray-600 mt-2 text-1">Welcome back</p>
-          <span className="logo-text"> {user.name}</span>
+    
+          <span className="logo-text">
+            {isLoadingUser ? "Loading..." : `${user?.firstName} ${user?.lastName}`}
+          </span>
         </div>
       </div>
 
@@ -209,14 +243,11 @@ const TopNav = () => {
               onClick={handleProfileClick}
               ref={profileButtonRef}
             >
-              <img 
-                src={user.avatar} 
-                alt={user.name}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`;
-                }}
-              />
+              <img
+                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    `${user?.firstName} ${user?.lastName}`
+                  )}&background=random`}
+                />
             </div>
 
             {/* Profile Dropdown */}
@@ -227,15 +258,16 @@ const TopNav = () => {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="profile-info">
-                  <img 
-                    src={user.avatar} 
-                    alt={user.name}
-                    className="dropdown-avatar"
-                  />
-                  <div className="user-info">
-                    <div className="user-name">{user.name}</div>
-                    <div className="user-email">{user.email}</div>
-                  </div>
+                    <img
+                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                          `${user?.firstName} ${user?.lastName}`
+                        )}&background=random`}
+                        className="dropdown-avatar"
+                      />
+                     <div className="user-info">
+                      <div className="user-name">{user?.firstName} {user?.lastName}</div>
+                      <div className="user-email">{user?.email}</div>
+                    </div>
                 </div>
                 <div className="dropdown-content">
                   <a 

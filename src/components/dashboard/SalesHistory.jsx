@@ -1,12 +1,654 @@
-import React from 'react'
-import TopNav from '../TopNav'
+import React, { useState, useEffect } from 'react';
+import { 
+  Search, 
+  Filter, 
+  Download, 
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  User,
+  CreditCard,
+  Package,
+  Hash,
+  DollarSign,
+  Clock,
+  Eye,
+  MoreVertical,
+  Loader2
+} from 'lucide-react';
+import TopNav from '../TopNav';
+import { format } from 'date-fns';
 
-function SalesHistory() {
+const SalesHistory = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedFilters, setSelectedFilters] = useState([]);
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [salesData, setSalesData] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1
+  });
+  
+  const itemsPerPage = 10;
+  const API_URL = 'https://sales-system-production.up.railway.app/api/sales';
+
+  // Filter options
+  const filterOptions = [
+    { id: 'transaction', label: 'ID', icon: <Hash className="w-3 h-3" /> },
+    { id: 'item', label: 'Item', icon: <Package className="w-3 h-3" /> },
+    { id: 'quantity', label: 'Qty', icon: <Hash className="w-3 h-3" /> },
+    { id: 'total', label: 'Total', icon: <DollarSign className="w-3 h-3" /> },
+    { id: 'payment', label: 'Payment', icon: <CreditCard className="w-3 h-3" /> },
+    { id: 'user', label: 'User', icon: <User className="w-3 h-3" /> },
+    { id: 'date', label: 'Date', icon: <Calendar className="w-3 h-3" /> },
+  ];
+
+  // Fetch sales data from API
+  const fetchSalesData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get token from localStorage or wherever you store it
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: itemsPerPage,
+        sortBy,
+        sortOrder
+      });
+      
+      if (searchTerm) params.append('search', searchTerm);
+      
+      const response = await fetch(`${API_URL}/get-sales-history?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setSalesData(data.data.sales || []);
+        setPagination(data.data.pagination || {
+          page: currentPage,
+          limit: itemsPerPage,
+          total: 0,
+          pages: 1
+        });
+      } else {
+        throw new Error(data.message || 'Failed to fetch sales data');
+      }
+    } catch (err) {
+      console.error('Error fetching sales data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSalesData();
+  }, [currentPage, sortBy, sortOrder, searchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm !== '') {
+        fetchSalesData();
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+
+  const handleFilterToggle = (filterId) => {
+    if (selectedFilters.includes(filterId)) {
+      setSelectedFilters(selectedFilters.filter(id => id !== filterId));
+    } else {
+      setSelectedFilters([...selectedFilters, filterId]);
+    }
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      setSortOrder(newOrder);
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      
+      const response = await fetch(`${API_URL}/export`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sales-history-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Failed to export data. Please try again.');
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    if (!amount) return '₦0';
+    const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]+/g, '')) : amount;
+    return `₦${num.toLocaleString('en-NG')}`;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now - date);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return `Today, ${format(date, 'h:mm a')}`;
+      } else if (diffDays === 1) {
+        return `Yesterday, ${format(date, 'h:mm a')}`;
+      } else if (diffDays < 7) {
+        return `${diffDays} days ago`;
+      } else {
+        return format(date, 'MMM d, yyyy');
+      }
+    } catch (err) {
+      return dateString;
+    }
+  };
+
+  const getPaymentColor = (paymentMethod) => {
+    if (!paymentMethod) return 'bg-gray-50 text-gray-700 border border-gray-200';
+    if (paymentMethod.includes('Cash')) return 'bg-green-50 text-green-700 border border-green-200';
+    if (paymentMethod.includes('POS')) return 'bg-blue-50 text-blue-700 border border-blue-200';
+    if (paymentMethod.includes('Transfer')) return 'bg-purple-50 text-purple-700 border border-purple-200';
+    return 'bg-gray-50 text-gray-700 border border-gray-200';
+  };
+
+  const getColumnClasses = (columnId) => {
+    switch(columnId) {
+      case 'transaction': return 'w-24';
+      case 'item': return 'min-w-32';
+      case 'quantity': return 'w-16';
+      case 'total': return 'w-20';
+      case 'payment': return 'w-28';
+      case 'user': return 'w-20';
+      case 'date': return 'w-28';
+      default: return '';
+    }
+  };
+
+  const calculateSummary = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todaySales = salesData.filter(sale => {
+      const saleDate = new Date(sale.createdAt || sale.timestamp);
+      return saleDate >= today;
+    }).reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
+    
+    const totalSales = salesData.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
+    
+    return {
+      transactions: salesData.length,
+      today: todaySales,
+      total: totalSales,
+      average: salesData.length > 0 ? totalSales / salesData.length : 0
+    };
+  };
+
+  const summary = calculateSummary();
+
+
+  if (loading && salesData.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <TopNav />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <span className="ml-2 text-gray-600">Loading sales history...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <TopNav/>
-    </div>
-  )
-}
+    <div className="min-h-screen bg-gray-50 p-2 md:p-4 lg:p-6">
+      <TopNav />
+      <div className="max-w-full mx-auto">
+        {/* Header */}
+        <div className="mb-4 md:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div>
+              
+              <p className="text-xs md:text-sm text-gray-600 mt-1">
+                {error ? 'Using demo data' : `${pagination.total} transactions found`}
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2 mt-5">
+              <button 
+                onClick={() => setFilterOpen(!filterOpen)}
+                className="flex items-center space-x-1 px-2 py-1.5 md:px-3 md:py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-xs md:text-sm"
+              >
+                <Filter className="w-3 h-3 md:w-4 md:h-4" />
+                <span>Filters</span>
+              </button>
+              
+              <button 
+                onClick={handleExport}
+                className="flex items-center space-x-1 px-2 py-1.5 md:px-3 md:py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs md:text-sm"
+              >
+                <Download className="w-3 h-3 md:w-4 md:h-4" />
+                <span>Export</span>
+              </button>
+            </div>
+          </div>
+          
+          {/* Search */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search by transaction ID, item, user..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
 
-export default SalesHistory
+        {error && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="text-sm text-yellow-800">
+              ⚠️ {error}. Showing demo data.
+            </p>
+          </div>
+        )}
+
+        {/* Filter Panel */}
+        {filterOpen && (
+          <div className="mb-4 bg-white rounded border border-gray-200 p-3">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-gray-900">Show columns:</h3>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => setSelectedFilters(filterOptions.map(f => f.id))}
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                >
+                  All
+                </button>
+                <button 
+                  onClick={() => setSelectedFilters([])}
+                  className="text-xs text-gray-600 hover:text-gray-800"
+                >
+                  None
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {filterOptions.map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => handleFilterToggle(filter.id)}
+                  className={`
+                    flex items-center space-x-1 px-2 py-1 rounded border text-xs transition-colors
+                    ${selectedFilters.includes(filter.id)
+                      ? 'bg-blue-50 border-blue-200 text-blue-700'
+                      : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  {filter.icon}
+                  <span>{filter.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && salesData.length > 0 && (
+          <div className="mb-4 flex items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <span className="ml-2 text-sm text-gray-600">Updating...</span>
+          </div>
+        )}
+
+        {/* Desktop Table */}
+        <div className="hidden lg:block bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {filterOptions.map((filter) => (
+                    <th 
+                      key={filter.id}
+                      className={`px-3 py-2.5 text-left font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 ${getColumnClasses(filter.id)}`}
+                      onClick={() => handleSort(filter.id)}
+                    >
+                      <div className="flex items-center space-x-1">
+                        {filter.icon}
+                        <span className="text-xs">{filter.label}</span>
+                        {sortBy === filter.id && (
+                          <ChevronDown className={`w-3 h-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {salesData.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="px-3 py-8 text-center">
+                      <div className="text-gray-500">No sales records found</div>
+                    </td>
+                  </tr>
+                ) : (
+                  salesData.map((sale) => (
+                    <tr key={sale._id || sale.transactionId} className="hover:bg-gray-50">
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="font-medium text-gray-900 text-xs">
+                            {sale.transactionId || sale._id?.slice(-6)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center">
+                          <span className="text-gray-900 text-xs truncate max-w-[120px]">
+                            {sale.item?.name || 'Unknown Item'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                          {sale.quantity || 0}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="font-semibold text-gray-900 text-xs">
+                          {formatCurrency(sale.totalAmount)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getPaymentColor(sale.paymentMethod)}`}>
+                          {sale.paymentMethod || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="text-gray-900 text-xs">
+                            {sale.soldBy?.name || sale.soldBy?.username || 'Unknown'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="text-gray-900 text-xs">
+                            {formatDate(sale.createdAt)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-xs">
+                        <button className="text-blue-600 hover:text-blue-900 flex items-center space-x-1">
+                          <Eye className="w-3 h-3" />
+                          <span>View</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tablet View */}
+        <div className="hidden md:block lg:hidden bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-xs">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase">ID</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase">Item</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase">Qty</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase">Total</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase">Payment</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase"></th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {salesData.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-2 py-6 text-center">
+                      <div className="text-gray-500">No sales records found</div>
+                    </td>
+                  </tr>
+                ) : (
+                  salesData.map((sale) => (
+                    <tr key={sale._id || sale.transactionId} className="hover:bg-gray-50">
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className="font-medium text-gray-900">
+                          {sale.transactionId?.slice(-6) || sale._id?.slice(-6)}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-gray-900 truncate block max-w-[100px]">
+                          {sale.item?.name || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-700">
+                          {sale.quantity || 0}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className="font-semibold text-gray-900">
+                          {formatCurrency(sale.totalAmount)}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-medium ${getPaymentColor(sale.paymentMethod)}`}>
+                          {sale.paymentMethod?.split('-')[0] || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className="text-gray-900">
+                          {formatDate(sale.createdAt)?.split(',')[0]}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <button className="p-1 hover:bg-gray-100 rounded">
+                          <MoreVertical className="w-4 h-4 text-gray-500" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-2">
+          {salesData.length === 0 ? (
+            <div className="bg-white rounded border border-gray-200 p-6 text-center">
+              <div className="text-gray-500">No sales records found</div>
+            </div>
+          ) : (
+            salesData.map((sale) => (
+              <div key={sale._id || sale.transactionId} className="bg-white rounded border border-gray-200 p-3">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="flex items-center space-x-1 mb-0.5">
+                      <span className="font-medium text-gray-900 text-xs">
+                        {sale.transactionId?.slice(-6) || sale._id?.slice(-6)}
+                      </span>
+                      <span className="text-xs text-gray-500">•</span>
+                      <span className="text-xs text-gray-600">
+                        {formatDate(sale.createdAt)}
+                      </span>
+                    </div>
+                    <span className="text-xs font-medium text-gray-900 block truncate">
+                      {sale.item?.name || 'Unknown Item'}
+                    </span>
+                  </div>
+                  <span className={`px-1.5 py-0.5 rounded text-xs ${getPaymentColor(sale.paymentMethod)}`}>
+                    {sale.paymentMethod?.includes('Cash') ? 'Cash' : sale.paymentMethod?.includes('POS') ? 'POS' : 'Transfer'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-1">
+                      <User className="w-3 h-3 text-gray-400" />
+                      <span className="text-xs text-gray-600">
+                        {sale.soldBy?.name || sale.soldBy?.username || 'Unknown'}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                        {sale.quantity || 0} pcs
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold text-gray-900 text-sm">
+                      {formatCurrency(sale.totalAmount)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Pagination */}
+        {pagination.pages > 1 && (
+          <div className="mt-4 md:mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-gray-700">
+              Page <span className="font-medium">{currentPage}</span> of{' '}
+              <span className="font-medium">{pagination.pages}</span>
+              {pagination.total > 0 && (
+                <span className="ml-2">
+                  ({pagination.total} total records)
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-2 py-1.5 border border-gray-300 rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Prev
+              </button>
+              
+              <div className="flex space-x-1">
+                {[...Array(Math.min(5, pagination.pages))].map((_, i) => {
+                  const pageNum = i + 1;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 rounded text-xs ${
+                        currentPage === pageNum
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                {pagination.pages > 5 && (
+                  <span className="px-2 flex items-center text-xs">...</span>
+                )}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, pagination.pages))}
+                disabled={currentPage === pagination.pages}
+                className="px-2 py-1.5 border border-gray-300 rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Summary Stats */}
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-gray-900">
+              {summary.transactions}
+            </div>
+            <div className="text-xs text-gray-600">Transactions</div>
+          </div>
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-green-600">
+              {formatCurrency(summary.today)}
+            </div>
+            <div className="text-xs text-gray-600">Today</div>
+          </div>
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-blue-600">
+              {formatCurrency(summary.average)}
+            </div>
+            <div className="text-xs text-gray-600">Average Sale</div>
+          </div>
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-purple-600">
+              {formatCurrency(summary.total)}
+            </div>
+            <div className="text-xs text-gray-600">Total Revenue</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SalesHistory;

@@ -1,21 +1,4 @@
-// import Sidebar from "../components/SideBar";
 
-// function SalesDashboard({ children }) {
-//   return (
-//     <div style={{ display: "flex" }}>
-//       <Sidebar />
-//       <div style={{ flex: 1, padding: 20 }}>
-//         {children}
-//       </div>
-//     </div>
-//   );
-// }
-// export default SalesDashboard;
-
-// components/Dashboard.jsx
-
-// components/Dashboard.jsx
-import React from 'react';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -28,7 +11,7 @@ import {
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 
-const SalesDashboard = () => {
+const AdminDashboard = () => {
   const stats = [
     {
       title: "Total Sales",
@@ -263,4 +246,4 @@ const SalesDashboard = () => {
   );
 };
 
-export default SalesDashboard;
+export default AdminDashboard;

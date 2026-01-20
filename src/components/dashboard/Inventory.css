@@ -105,36 +105,49 @@
 }
 
 /* Search Container */
-.search-contain {
+.inventory-search-container {
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: -100px;
+  flex: 1;
+  max-width: 450px;
 }
 
-.search-input {
-  padding: 10px 16px 10px 40px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  width: 240px;
-  background: #f8fafc;
-  transition: all 0.2s ease;
+.inventory-search-input {
+  width: 100%;
+  padding: 12px 16px 12px 40px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 15px;
+  background: white;
+  transition: all 0.3s ease;
+  color: #1e293b;
 }
 
-.search-input:focus {
+.inventory-search-input::placeholder {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.inventory-search-input:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.inventory-search-input:focus {
   outline: none;
   border-color: #3b82f6;
   background: white;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
-.search-icon1 {
+.inventory-search-icon {
   position: absolute;
-  left: 5px;
+  left: 12px;
   width: 18px;
   height: 18px;
-  color: #94a3b8;
+  color: #64748b;
+  pointer-events: none;
 }
 
 /* Filter Button */
@@ -166,7 +179,9 @@
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
   border: none;
-  font-weight: 600;
+  font-weight: 500;
+  padding: 10px 20px;
+  font-size: 14px;
 }
 
 .add-btn:hover {
@@ -188,8 +203,8 @@
 .inventory-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 900px;
-  
+  min-width: 100%;
+  table-layout: fixed;
 }
 
 .inventory-table thead {
@@ -199,9 +214,9 @@
 }
 
 .inventory-table th {
-  padding: 16px 24px;
+  padding: 12px 12px;
   text-align: left;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #475569;
   text-transform: uppercase;
@@ -222,8 +237,8 @@
 }
 
 .inventory-table td {
-  padding: 20px 24px;
-  font-size: 12px;
+  padding: 12px 12px;
+  font-size: 11px;
   color: #1e293b;
 }
 
@@ -259,7 +274,7 @@
 
 .product-text {
   display: inline-block;
-  max-width: 200px;
+  max-width: 120px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -268,11 +283,11 @@
 /* Quantity Badge */
 .quantity-badge {
   display: inline-block;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 600;
-  min-width: 60px;
+  min-width: 50px;
   text-align: center;
 }
 
@@ -314,7 +329,20 @@
 
 /* Actions Column */
 .actions-column {
-  width: 160px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: auto;
+  min-width: 180px;
+}
+
+th.actions-column {
+  width: 180px;
+  text-align: left;
+}
+
+td.actions-column {
+  padding: 12px 12px;
 }
 
 .table-action-btn {
@@ -328,6 +356,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .edit-btn {
@@ -437,7 +466,6 @@
   font-size: 14px;
   color: #475569;
 }
-/* Add these styles to InventoryDashboard.css */
 
 /* Stock Status Summary */
 .stock-summary {
@@ -504,14 +532,14 @@
 /* Stock Label Badges */
 .stock-label-badge {
   display: inline-block;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
+  padding: 4px 30px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  min-width: 100px;
+  letter-spacing: 0.3px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .stock-label-badge.normal {
@@ -613,5 +641,170 @@
     flex-direction: column;
     gap: 16px;
     text-align: center;
+  }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease-out;
+  border: 1px solid #e2e8f0;
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  text-align: center;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #475569;
+  font-size: 14px;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modal-input::placeholder {
+  color: #94a3b8;
+}
+
+select.modal-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 20px;
+  padding-right: 40px;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 2px solid #f1f5f9;
+}
+
+.cancel-btn,
+.save-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.cancel-btn {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+}
+
+.cancel-btn:hover {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  border: 2px solid transparent;
+}
+
+.save-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Responsive modal */
+@media (max-width: 640px) {
+  .modal-content {
+    padding: 24px;
+    width: 95%;
+    margin: 10px;
+  }
+  
+  .modal-buttons {
+    flex-direction: column;
+  }
+  
+  .cancel-btn,
+  .save-btn {
+    width: 100%;
   }
 }

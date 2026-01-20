@@ -4,7 +4,7 @@ import sideImage from "../assets/sideImage.png";
 import '../App.css';
 
 function Login() {
-  const [email, setEmail] = useState("");
+  const [emailOrUsername, setemailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -16,23 +16,23 @@ function Login() {
 
 const handleLogin = async (e) => {
   e.preventDefault();
-  setIsLoading(true); // show loading modal
+  setIsLoading(true); 
 
   try {
-    const response = await fetch("http://localhost:5000/api/login", {
+    const response = await fetch("https://sales-system-production.up.railway.app/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ emailOrUsername, password }),
     });
 
     const data = await response.json();
 
     if (response.ok) {
       localStorage.setItem("token", data.token);
-      // redirect or update UI as needed
+      window.location.href = "/admin-dashboard";
     } else {
       setErrorMessage(data.message || "Login failed");
-      setShowErrorModal(true);clearImmediate
+      setShowErrorModal(true);
     }
   } catch (error) {
     setErrorMessage("Something went wrong. Please try again.");
@@ -91,9 +91,9 @@ const handleLogin = async (e) => {
             <div style={{ display: "flex", flexDirection: "column" }}>
               <label style={{ fontSize: 14, marginBottom: 4 }}>Email</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={emailOrUsername}
+                onChange={(e) => setemailOrUsername(e.target.value)}
                 placeholder="john.doe@gmail.com"
                 style={{
                   padding: "10px 12px",
