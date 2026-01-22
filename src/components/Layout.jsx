@@ -1,5 +1,5 @@
 import React from 'react';
-import Sidebar from './SideBar';
+import Sidebar from './adminDashboard/SideBar';
 
 const Layout = ({ children, activeSection, setActiveSection }) => {
   return (

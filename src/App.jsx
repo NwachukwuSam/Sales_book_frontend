@@ -2,17 +2,22 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import Layout from './components/Layout';
-import Welcome from './pages/Welcome';
 import Login from './pages/Login';
-import Analytics from './components/dashboard/Analytics';
-import Inventory from './components/dashboard/Inventory';
-import PosHistory from './components/dashboard/PosHistory';
-import SalesHistory from './components/dashboard/SalesHistory';
-import SalesItems from './components/dashboard/SalesItems';
-import AdminDashboard from './pages/AdminDashboard';
+import Analytics from './components/adminDashboard/Dashboard';
+import Inventory from './components/adminDashboard/Inventory';
+import PosHistory from './components/adminDashboard/PosHistory';
+import SalesHistory from './components/adminDashboard/SalesHistory';
 import WelcomeTwo from './pages/WelcomeTwo';
-import Users from './components/dashboard/Users';
-import UserDetails from './components/dashboard/UserDetails';
+import Users from './components/adminDashboard/Users';
+import UserDetails from './components/adminDashboard/UserDetails';
+
+import Dashboard from './components/adminDashboard/Dashboard';
+import Report from './components/adminDashboard/Report';
+import CashierLayout from './components/CashierLayout';
+import CashierDashboard from './components/cashierDashboard/CashierDashboard';
+import QuickSale from './components/cashierDashboard/QuickSale';
+import CashierInventory from './components/cashierDashboard/CashierInventory';
+import CashierSalesHistory from './components/cashierDashboard/CashierSalesHistory';
 
 function App() {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -22,6 +27,7 @@ function App() {
       <Routes>
           <Route path="/" element={<WelcomeTwo />} />
           <Route path="/login" element={<Login />} />
+
         {/* All routes use the same Layout with Sidebar */}
         <Route path="/" element={
           <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
@@ -31,7 +37,7 @@ function App() {
         
         <Route path="/admin-dashboard" element={
           <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
-            <AdminDashboard />
+            <Dashboard />
           </Layout>
         } />
         
@@ -46,6 +52,11 @@ function App() {
             <Inventory />
           </Layout>
         } />
+        <Route path="/sales-history" element={
+          <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
+            <SalesHistory/>
+          </Layout>
+        } />
         
         <Route path="/pos-history" element={
           <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
@@ -53,15 +64,9 @@ function App() {
           </Layout>
         } />
         
-        <Route path="/sales-history" element={
+        <Route path="/report" element={
           <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
-            <SalesHistory />
-          </Layout>
-        } />
-        
-        <Route path="/sales-items" element={
-          <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
-            <SalesItems />
+            <Report />
           </Layout>
         } />
         
@@ -79,6 +84,30 @@ function App() {
         
         {/* Catch-all redirect */}
         <Route path="*" element={<Navigate to="/admin-dashboard" replace />} />
+
+        {/* All Cashier routes use the CashierLayout with CashierSidebar */}
+         <Route path="/cashier-dashboard" element={
+          <CashierLayout activeSection={activeSection} setActiveSection={setActiveSection}>
+            <CashierDashboard/>
+          </CashierLayout>
+        } />
+
+        <Route path="/quick-sale" element={
+          <CashierLayout activeSection={activeSection} setActiveSection={setActiveSection}>
+            <QuickSale/>
+          </CashierLayout>
+        } />
+        <Route path="/cashier-inventory" element={
+          <CashierLayout activeSection={activeSection} setActiveSection={setActiveSection}>
+            <CashierInventory/>
+          </CashierLayout>
+        } />
+        <Route path="/cashier-sales-history" element={
+          <CashierLayout activeSection={activeSection} setActiveSection={setActiveSection}>
+            <CashierSalesHistory/>
+          </CashierLayout>
+        } />
+
       </Routes>
     </BrowserRouter>
   );

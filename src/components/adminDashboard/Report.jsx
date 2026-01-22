@@ -1,7 +1,7 @@
 import React from 'react'
 import TopNav from '../TopNav'
 
-function SalesItems() {
+function Report() {
   return (
     <div>
       <TopNav/>
@@ -9,4 +9,4 @@ function SalesItems() {
   )
 }
 
-export default SalesItems
+export default Report

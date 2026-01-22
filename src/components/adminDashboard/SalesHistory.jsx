@@ -69,7 +69,7 @@ const SalesHistory = () => {
       
       if (searchTerm) params.append('search', searchTerm);
       
-      const response = await fetch(`${API_URL}/get-sales-history?${params}`, {
+      const response = await fetch(`${API_URL}/sales-history?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
