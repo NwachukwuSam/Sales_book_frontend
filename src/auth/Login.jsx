@@ -26,13 +26,13 @@ function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        // Store all necessary data
+      
         localStorage.setItem("token", data.token);
         localStorage.setItem("userRole", data.user.role);
         localStorage.setItem("userData", JSON.stringify(data.user));
         localStorage.setItem("loginResponse", JSON.stringify(data));
         
-        // Redirect based on role
+       
         if (data.user.role === "admin") {
           window.location.href = "/admin-dashboard";
         } else if (data.user.role === "cashier") {
@@ -72,7 +72,7 @@ function Login() {
           alignItems: "center",
           padding: "40px 20px",
           boxSizing: "border-box",
-          // On mobile, take full width
+          
           "@media (maxWidth: 768px)": {
             width: "100%",
             minHeight: "100vh",
