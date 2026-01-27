@@ -2,19 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, 
   ShoppingCart, 
-  Users, 
-  TrendingUp,
   Package,
-  Clock,
-  Calendar,
+  TrendingUp,
   CheckCircle,
   AlertCircle,
   BarChart3,
   Plus,
   RefreshCw,
   ArrowUpRight,
-  ArrowDownRight,
-  Loader2
+  Loader2,
+  Users,
+  Clock
 } from 'lucide-react';
 import CashierTopNav from '../cashierDashboard/CashierTopNav.jsx';
 import axios from 'axios';
@@ -25,35 +23,15 @@ const CashierDashboard = () => {
   const [stats, setStats] = useState({
     todaySales: 0,
     todayTransactions: 0,
-    todayCustomers: 0,
     inventoryLowStock: 0
   });
   
   const [recentTransactions, setRecentTransactions] = useState([]);
-  const [lowStockItems, setLowStockItems] = useState([]);
-  const [dailyStats, setDailyStats] = useState({
-    bestSellingHour: '',
-    highestTransaction: 0,
-    avgTransactionTime: 0
-  });
   const [loading, setLoading] = useState(true);
-  const [quickActions, setQuickActions] = useState([
-    { id: 1, title: 'New Sale', icon: Plus, color: 'bg-blue-500', link: '/quick-sale' },
-    { id: 2, title: 'View Inventory', icon: Package, color: 'bg-green-500', link: '/cashier-inventory' },
-    { id: 3, title: 'Sales History', icon: BarChart3, color: 'bg-purple-500', link: '/cashier-sales-history' },
-    { id: 4, title: 'Customer List', icon: Users, color: 'bg-orange-500', link: '/customers' }
-  ]);
+  const [error, setError] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [currentTime, setCurrentTime] = useState('');
 
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [shiftStatus, setShiftStatus] = useState('Active');
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer); // cleanup
-  }, []);
   // Format currency to Naira
   const formatCurrency = (amount) => {
     if (amount === null || amount === undefined || isNaN(amount)) return '₦0.00';
@@ -66,14 +44,36 @@ const CashierDashboard = () => {
     }).format(amount);
   };
 
-  // Format date and time
-  const formatDateTime = (date) => {
-    return date.toLocaleDateString('en-NG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now - date);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return `Today, ${date.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}`;
+      } else if (diffDays === 1) {
+        return `Yesterday, ${date.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}`;
+      } else if (diffDays < 7) {
+        return `${diffDays} days ago`;
+      } else {
+        return date.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    } catch (err) {
+      return dateString;
+    }
+  };
+
+  // Get payment method color
+  const getPaymentColor = (paymentMethod) => {
+    if (!paymentMethod) return 'bg-gray-100 text-gray-800';
+    if (paymentMethod.includes('Cash')) return 'bg-green-100 text-green-800';
+    if (paymentMethod.includes('Pos')) return 'bg-blue-100 text-blue-800';
+    if (paymentMethod.includes('Transfer')) return 'bg-purple-100 text-purple-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
   // Get auth token
@@ -81,216 +81,228 @@ const CashierDashboard = () => {
     return localStorage.getItem('token');
   };
 
-  // Fetch today's analytics
-  const fetchTodayAnalytics = async () => {
+  // Update current time
+  const updateCurrentTime = () => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const seconds = now.getSeconds().toString().padStart(2, '0');
+    setCurrentTime(`${hours}:${minutes}:${seconds}`);
+  };
+
+  // Fetch user data from API
+  const fetchUserDataFromAPI = async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/analytics/daily`, {
+      if (!token) {
+        console.log('No token found');
+        return null;
+      }
+
+      const response = await axios.get(`${API_BASE_URL}/auth/me`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
       
-      const data = response.data.analytics || response.data;
-      return {
-        totalRevenue: data.totalSales?.totalRevenue || 0,
-        totalTransactions: data.totalSales?.totalTransactions || 0,
-        customersServed: data.cashierSales?.length || data.totalSales?.totalCustomers || 0
-      };
+      if (response.data.success && response.data.user) {
+        const userData = response.data.user;
+        setUserData(userData);
+        localStorage.setItem('userData', JSON.stringify(userData));
+        return userData;
+      } else if (response.data.user) {
+        const userData = response.data.user;
+        setUserData(userData);
+        localStorage.setItem('userData', JSON.stringify(userData));
+        return userData;
+      }
+      
+      return null;
     } catch (error) {
-      console.error('Error fetching analytics:', error);
+      console.error('Error fetching user data from API:', error);
       return null;
     }
   };
 
-  // Fetch recent sales
-  const fetchRecentSales = async () => {
+  // Load user data on component mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        // Try to get from localStorage first
+        const userDataString = localStorage.getItem('userData') || 
+                              localStorage.getItem('user') || 
+                              sessionStorage.getItem('userData');
+        
+        if (userDataString) {
+          const parsedData = JSON.parse(userDataString);
+          setUserData(parsedData);
+        } else {
+          // If not in storage, fetch from API
+          await fetchUserDataFromAPI();
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        // Try to fetch from API as fallback
+        await fetchUserDataFromAPI();
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  // Get cashier ID from user data
+  const getCashierId = () => {
+    if (!userData) {
+      return null;
+    }
+    
+    return userData.id || userData._id || userData.userId;
+  };
+
+  // Fetch cashier's sales data using the same endpoint as sales history
+  const fetchCashierSales = async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/sales/recent?limit=5`, {
-        headers: { Authorization: `Bearer ${token}` }
+      
+      if (!token) {
+        return { total: 0, transactions: [], count: 0 };
+      }
+
+      // Use the same endpoint as CashierSalesHistory with limit parameter
+      const response = await axios.get(`${API_BASE_URL}/sales/sales-history`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        params: {
+          limit: 100, // Get more records to filter for today
+          page: 1,
+          sortBy: 'date',
+          sortOrder: 'desc'
+        }
       });
       
-      return response.data || [];
+      // Extract sales data
+      const salesData = response.data.data?.sales || response.data.sales || [];
+      
+      // Get today's date range
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Filter for today's sales only
+      const todaySales = salesData.filter(sale => {
+        const saleDate = new Date(sale.createdAt || sale.timestamp);
+        return saleDate >= today && saleDate < tomorrow;
+      });
+      
+      // Calculate today's totals
+      const totalAmount = todaySales.reduce((sum, sale) => {
+        const amount = sale.totalAmount || 0;
+        return sum + amount;
+      }, 0);
+      
+      const transactionCount = todaySales.length;
+      
+      // Get recent transactions (last 5 from today)
+      const recentSales = todaySales
+        .sort((a, b) => new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp))
+        .slice(0, 5);
+      
+      return {
+        total: totalAmount,
+        transactions: recentSales,
+        count: transactionCount
+      };
+      
     } catch (error) {
-      console.error('Error fetching recent sales:', error);
-      return [];
+      console.error('Error fetching cashier sales:', error);
+      return { total: 0, transactions: [], count: 0 };
     }
   };
 
-  // Fetch low stock inventory
+  // Fetch low stock items
   const fetchLowStockItems = async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/inventory/low-stock`, {
+      
+      if (!token) {
+        return [];
+      }
+      
+      const response = await axios.get(`${API_BASE_URL}/inventory`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      return response.data || [];
+      const inventoryItems = response.data.data?.items || response.data.items || response.data || [];
+      
+      // Find low stock items (less than 10 items)
+      const lowStock = inventoryItems.filter(item => 
+        item.quantity !== undefined && item.quantity < 10
+      );
+      
+      return lowStock;
+      
     } catch (error) {
-      console.error('Error fetching low stock items:', error);
+      console.error('Error fetching inventory:', error);
       return [];
     }
-  };
-
-  // Fetch daily statistics
-  const fetchDailyStats = async () => {
-    try {
-      const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/analytics/daily-stats`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      return response.data || {
-        bestSellingHour: '',
-        highestTransaction: 0,
-        avgTransactionTime: 0
-      };
-    } catch (error) {
-      console.error('Error fetching daily stats:', error);
-      return {
-        bestSellingHour: '2:00 PM - 3:00 PM',
-        highestTransaction: 0,
-        avgTransactionTime: 0
-      };
-    }
-  };
-
-  // Calculate shift duration
-  const calculateShiftDuration = () => {
-    // In a real app, you would fetch shift start time from API
-    const shiftStart = new Date();
-    shiftStart.setHours(8, 0, 0, 0); // Example: shift started at 8:00 AM
-    
-    const diffMs = currentTime - shiftStart;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${diffHours}h ${diffMinutes}m`;
   };
 
   // Fetch dashboard data
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Fetch all data in parallel for better performance
-      const [
-        analytics,
-        recentSales,
-        lowStock,
-        dailyStatistics
-      ] = await Promise.all([
-        fetchTodayAnalytics(),
-        fetchRecentSales(),
-        fetchLowStockItems(),
-        fetchDailyStats()
+      // Ensure we have user data
+      let currentUserData = userData;
+      if (!currentUserData) {
+        currentUserData = await fetchUserDataFromAPI();
+      }
+      
+      // Fetch data in parallel
+      const [salesData, lowStockItems] = await Promise.all([
+        fetchCashierSales(),
+        fetchLowStockItems()
       ]);
 
       // Update stats
-      if (analytics) {
-        setStats({
-          todaySales: analytics.totalRevenue || 0,
-          todayTransactions: analytics.totalTransactions || 0,
-          todayCustomers: analytics.customersServed || 0,
-          inventoryLowStock: lowStock.length || 0
-        });
-      }
+      setStats({
+        todaySales: salesData.total || 0,
+        todayTransactions: salesData.count || 0,
+        inventoryLowStock: lowStockItems.length || 0
+      });
 
       // Update recent transactions
-      setRecentTransactions(recentSales);
-
-      // Update low stock items
-      setLowStockItems(lowStock);
-
-      // Update daily stats
-      setDailyStats(dailyStatistics);
+      setRecentTransactions(salesData.transactions || []);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError('Unable to load dashboard data. Please try again.');
       
-      // Fallback sample data for demo
+      // Show empty state
       setStats({
-        todaySales: 1250000,
-        todayTransactions: 24,
-        todayCustomers: 18,
-        inventoryLowStock: 3
+        todaySales: 0,
+        todayTransactions: 0,
+        inventoryLowStock: 0
       });
-
-      setRecentTransactions([
-        { _id: '1', transactionId: 'TXN-001', totalAmount: 95000, customer: 'John Doe', paymentMethod: 'Cash', createdAt: new Date().toISOString() },
-        { _id: '2', transactionId: 'TXN-002', totalAmount: 125000, customer: 'Jane Smith', paymentMethod: 'Pos-UBA', createdAt: new Date().toISOString() },
-        { _id: '3', transactionId: 'TXN-003', totalAmount: 45000, customer: 'Walk-in', paymentMethod: 'Cash', createdAt: new Date().toISOString() },
-        { _id: '4', transactionId: 'TXN-004', totalAmount: 220000, customer: 'Michael Brown', paymentMethod: 'Transfer-UBA', createdAt: new Date().toISOString() },
-        { _id: '5', transactionId: 'TXN-005', totalAmount: 75000, customer: 'Sarah Johnson', paymentMethod: 'Pos-Wema', createdAt: new Date().toISOString() }
-      ]);
-
-      setLowStockItems([
-        { productName: 'Product A', currentStock: 5, minimumStock: 10 },
-        { productName: 'Product B', currentStock: 3, minimumStock: 15 },
-        { productName: 'Product C', currentStock: 2, minimumStock: 10 }
-      ]);
-
-      setDailyStats({
-        bestSellingHour: '2:00 PM - 3:00 PM',
-        highestTransaction: 250000,
-        avgTransactionTime: 3.5
-      });
-
+      setRecentTransactions([]);
+      
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Handle shift actions
-  const handleShiftAction = async (action) => {
-    try {
-      const token = getAuthToken();
-      
-      switch (action) {
-        case 'break':
-          await axios.post(`${API_BASE_URL}/shifts/break`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setShiftStatus('Break');
-          alert('Shift paused. You are now on break.');
-          break;
-          
-        case 'resume':
-          await axios.post(`${API_BASE_URL}/shifts/resume`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setShiftStatus('Active');
-          alert('Shift resumed. Welcome back!');
-          break;
-          
-        case 'end':
-          if (window.confirm('Are you sure you want to end your shift?')) {
-            await axios.post(`${API_BASE_URL}/shifts/end`, {}, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            setShiftStatus('Ended');
-            alert('Shift ended successfully. Good job today!');
-          }
-          break;
-          
-        default:
-          break;
-      }
-    } catch (error) {
-      console.error('Error updating shift status:', error);
-      alert('Failed to update shift status. Please try again.');
     }
   };
 
   // Calculate transactions per hour
   const calculateTransactionsPerHour = () => {
     const shiftStart = 8; // 8 AM
-    const currentHour = currentTime.getHours();
+    const currentHour = new Date().getHours();
     const hoursWorked = Math.max(currentHour - shiftStart, 1);
     
-    return Math.round(stats.todayTransactions / hoursWorked);
+    return Math.round(stats.todayTransactions / hoursWorked) || 0;
   };
 
   // Calculate average transaction value
@@ -299,25 +311,55 @@ const CashierDashboard = () => {
     return stats.todaySales / stats.todayTransactions;
   };
 
-  // Update time every minute
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
+  // Get item display from sale
+  const getItemDisplay = (sale) => {
+    if (!sale.items || sale.items.length === 0) {
+      // Fallback to old format
+      if (sale.item?.name) return sale.item.name;
+      return 'No items';
+    }
+    
+    if (sale.items.length === 1) {
+      return sale.items[0].name || 'Item';
+    }
+    
+    return `${sale.items.length} items`;
+  };
 
-    return () => clearInterval(timer);
+  // Get total quantity from sale
+  const getTotalQuantity = (sale) => {
+    if (!sale.items || sale.items.length === 0) {
+      // Fallback to old format
+      return sale.quantity || 0;
+    }
+    return sale.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  };
+
+  // Fetch data when userData is available
+  useEffect(() => {
+    if (userData) {
+      fetchDashboardData();
+    }
+  }, [userData]);
+
+  // Initial load - fetch even if no userData (will fetch userData inside)
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      fetchDashboardData();
+    }
   }, []);
 
-  // Fetch data on component mount
+  // Set up timer for current time
   useEffect(() => {
-    fetchDashboardData();
+    // Initialize time
+    updateCurrentTime();
     
-    // Set up auto-refresh every 30 seconds
-    const interval = setInterval(() => {
-      fetchDashboardData();
-    }, 30000);
+    // Update every second
+    const timerId = setInterval(updateCurrentTime, 1000);
     
-    return () => clearInterval(interval);
+    // Clean up interval on unmount
+    return () => clearInterval(timerId);
   }, []);
 
   // Handle refresh
@@ -325,18 +367,8 @@ const CashierDashboard = () => {
     fetchDashboardData();
   };
 
-  // Get shift status color
-  const getShiftStatusColor = () => {
-    switch (shiftStatus) {
-      case 'Active': return 'bg-green-100 text-green-800';
-      case 'Break': return 'bg-yellow-100 text-yellow-800';
-      case 'Ended': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   // Loading state
-  if (loading) {
+  if (loading && recentTransactions.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
         <CashierTopNav />
@@ -359,89 +391,55 @@ const CashierDashboard = () => {
         <header className="mb-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Cashier Dashboard</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                {userData?.firstName ? `Welcome, ${userData.firstName}!` : 'Cashier Dashboard'}
+              </h1>
               <p className="text-gray-600 mt-2">
-                Welcome back! Here's your performance overview for today.
+                Here's your performance overview for today.
               </p>
             </div>
             
             <div className="flex items-center space-x-4">
-              {/* Time and Date */}
-              <div className="hidden md:flex items-center space-x-4">
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-gray-800">
-                    {currentTime.toLocaleTimeString('en-NG', { 
-                      hour: '2-digit', 
-                      minute: '2-digit' ,
-                      second: '2-digit',
-                    })}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {formatDateTime(currentTime)}
-                  </div>
-                </div>
+              {/* Current Time Display */}
+              <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 py-2">
+                <Clock className="h-4 w-4 text-gray-600 mr-2" />
+                <span className="text-gray-700 font-medium">{currentTime}</span>
               </div>
+              
+              {/* User Info */}
+              {userData && (
+                <div className="text-sm text-gray-600 hidden md:block">
+                  <div className="font-medium">{userData.firstName} {userData.lastName}</div>
+                  <div className="text-xs">@{userData.username || 'cashier'}</div>
+                </div>
+              )}
               
               {/* Refresh Button */}
               <button
                 onClick={handleRefresh}
-                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={loading}
+                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 title="Refresh dashboard"
               >
-                <RefreshCw className="h-5 w-5 text-gray-600" />
+                <RefreshCw className={`h-5 w-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
         </header>
 
-        {/* Shift Status Banner */}
-        <div className="mb-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="flex items-center">
-                <div className={`px-3 py-1 rounded-full ${getShiftStatusColor()} flex items-center`}>
-                  <span className="h-2 w-2 rounded-full mr-2 bg-current animate-pulse"></span>
-                  <span className="font-medium">Shift: {shiftStatus}</span>
-                </div>
-                <span className="ml-4 text-gray-600 text-sm">
-                  Started: 8:00 AM • Duration: {calculateShiftDuration()}
-                </span>
-              </div>
-              
-              <div className="flex space-x-3">
-                {shiftStatus === 'Active' && (
-                  <button
-                    onClick={() => handleShiftAction('break')}
-                    className="px-4 py-2 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100"
-                  >
-                    Take Break
-                  </button>
-                )}
-                
-                {shiftStatus === 'Break' && (
-                  <button
-                    onClick={() => handleShiftAction('resume')}
-                    className="px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
-                  >
-                    Resume Shift
-                  </button>
-                )}
-                
-                {shiftStatus !== 'Ended' && (
-                  <button
-                    onClick={() => handleShiftAction('end')}
-                    className="px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100"
-                  >
-                    End Shift
-                  </button>
-                )}
+        {error && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-yellow-600 mr-3" />
+              <div>
+                <p className="text-yellow-800">{error}</p>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {/* Today's Sales */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -459,7 +457,7 @@ const CashierDashboard = () => {
               {stats.todaySales > 0 ? (
                 <>
                   <ArrowUpRight className="h-4 w-4 mr-1" />
-                  <span>Good performance today</span>
+                  <span>Your sales today</span>
                 </>
               ) : (
                 <span>No sales yet</span>
@@ -467,11 +465,11 @@ const CashierDashboard = () => {
             </div>
           </div>
 
-          {/* Transactions Today */}
+          {/* Your Transactions */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-gray-500 text-sm font-medium">Transactions</p>
+                <p className="text-gray-500 text-sm font-medium">Your Transactions</p>
                 <h3 className="text-2xl font-bold text-gray-800 mt-2">
                   {stats.todayTransactions}
                 </h3>
@@ -486,26 +484,7 @@ const CashierDashboard = () => {
             </div>
           </div>
 
-          {/* Customers Served */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">Customers Served</p>
-                <h3 className="text-2xl font-bold text-gray-800 mt-2">
-                  {stats.todayCustomers}
-                </h3>
-              </div>
-              <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-            <div className="flex items-center text-purple-600 text-sm">
-              <CheckCircle className="h-4 w-4 mr-1" />
-              <span>Excellent service</span>
-            </div>
-          </div>
-
-          {/* Low Stock Alert */}
+          {/* Low Stock Items */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -518,9 +497,18 @@ const CashierDashboard = () => {
                 <Package className="h-6 w-6 text-orange-600" />
               </div>
             </div>
-            <div className="flex items-center text-orange-600 text-sm">
-              <AlertCircle className="h-4 w-4 mr-1" />
-              <span>Requires attention</span>
+            <div className={`flex items-center ${stats.inventoryLowStock > 0 ? 'text-orange-600' : 'text-green-600'} text-sm`}>
+              {stats.inventoryLowStock > 0 ? (
+                <>
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  <span>Needs attention</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  <span>Stock good</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -533,93 +521,82 @@ const CashierDashboard = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-6">Quick Actions</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {quickActions.map((action) => (
-                  <a
-                    key={action.id}
-                    href={action.link}
-                    className="group flex flex-col items-center justify-center p-6 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all"
-                  >
-                    <div className={`h-14 w-14 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                      <action.icon className="h-7 w-7 text-white" />
-                    </div>
-                    <span className="font-medium text-gray-800 text-center group-hover:text-blue-600">
-                      {action.title}
-                    </span>
-                  </a>
-                ))}
+                <a
+                  href="/quick-sale"
+                  className="group flex flex-col items-center justify-center p-6 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all"
+                >
+                  <div className="h-14 w-14 bg-blue-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Plus className="h-7 w-7 text-white" />
+                  </div>
+                  <span className="font-medium text-gray-800 text-center group-hover:text-blue-600">
+                    New Sale
+                  </span>
+                </a>
+                
+                <a
+                  href="/cashier-inventory"
+                  className="group flex flex-col items-center justify-center p-6 border border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all"
+                >
+                  <div className="h-14 w-14 bg-green-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Package className="h-7 w-7 text-white" />
+                  </div>
+                  <span className="font-medium text-gray-800 text-center group-hover:text-green-600">
+                    View Inventory
+                  </span>
+                </a>
+                
+                <a
+                  href="/cashier-sales-history"
+                  className="group flex flex-col items-center justify-center p-6 border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all"
+                >
+                  <div className="h-14 w-14 bg-purple-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <BarChart3 className="h-7 w-7 text-white" />
+                  </div>
+                  <span className="font-medium text-gray-800 text-center group-hover:text-purple-600">
+                    Sales History
+                  </span>
+                </a>
+                
+                <a
+                  href="/customers"
+                  className="group flex flex-col items-center justify-center p-6 border border-gray-200 rounded-xl hover:border-orange-300 hover:shadow-md transition-all"
+                >
+                  <div className="h-14 w-14 bg-orange-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Users className="h-7 w-7 text-white" />
+                  </div>
+                  <span className="font-medium text-gray-800 text-center group-hover:text-orange-600">
+                    Customers
+                  </span>
+                </a>
               </div>
             </div>
 
-            {/* Performance Tips */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm border border-blue-200 p-6">
-              <div className="flex items-center mb-4">
-                <TrendingUp className="h-6 w-6 text-blue-600 mr-3" />
-                <h2 className="text-lg font-semibold text-gray-800">Performance Tips</h2>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex items-start">
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-medium text-gray-800">Increase Average Transaction</h4>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Suggest add-ons to increase sales value. Current average: {formatCurrency(calculateAverageTransaction())}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <Clock className="h-5 w-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-medium text-gray-800">Speed Up Transactions</h4>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Use keyboard shortcuts and presets for faster checkout.
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <Users className="h-5 w-5 text-purple-500 mt-0.5 mr-3 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-medium text-gray-800">Customer Service</h4>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Greet customers warmly and ask for feedback.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Recent Transactions & Alerts */}
-          <div className="space-y-6">
             {/* Recent Transactions */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-semibold text-gray-800">Recent Transactions</h2>
-                <a href="/sales" className="text-blue-600 hover:text-blue-700 text-sm">
+                <h2 className="text-lg font-semibold text-gray-800">Your Recent Transactions</h2>
+                <a href="/cashier-sales-history" className="text-blue-600 hover:text-blue-700 text-sm">
                   View All
                 </a>
               </div>
               
               <div className="space-y-4">
                 {recentTransactions.length > 0 ? (
-                  recentTransactions.map((transaction) => (
-                    <div key={transaction._id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
+                  recentTransactions.map((transaction, index) => (
+                    <div key={transaction._id || index} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
                       <div>
                         <div className="font-medium text-gray-800">
-                          {transaction.transactionId || `TXN-${transaction._id?.slice(-4) || '0000'}`}
+                          {transaction.transactionId || `TXN-${(transaction._id || '').slice(-4) || '000'}`}
                         </div>
                         <div className="text-sm text-gray-600 flex items-center mt-1">
-                          <span>{transaction.customer?.name || transaction.customer || 'Walk-in Customer'}</span>
+                          <span>{getItemDisplay(transaction)}</span>
                           <span className="mx-2">•</span>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            transaction.paymentMethod === 'Cash' ? 'bg-green-100 text-green-800' :
-                            transaction.paymentMethod?.includes('POS') ? 'bg-blue-100 text-blue-800' :
-                            'bg-purple-100 text-purple-800'
-                          }`}>
-                            {transaction.paymentMethod || 'Cash'}
+                          <span className={`px-2 py-1 rounded text-xs ${getPaymentColor(transaction.paymentMethod)}`}>
+                            {transaction.paymentMethod?.split('-')[0] || 'Cash'}
                           </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {formatDate(transaction.createdAt)}
                         </div>
                       </div>
                       <div className="text-right">
@@ -627,10 +604,7 @@ const CashierDashboard = () => {
                           {formatCurrency(transaction.totalAmount || 0)}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {transaction.createdAt ? new Date(transaction.createdAt).toLocaleTimeString('en-NG', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          }) : 'Just now'}
+                          {getTotalQuantity(transaction)} items
                         </div>
                       </div>
                     </div>
@@ -638,63 +612,83 @@ const CashierDashboard = () => {
                 ) : (
                   <div className="text-center py-8">
                     <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No recent transactions</p>
+                    <p className="text-gray-500">No transactions yet today</p>
+                    <a href="/quick-sale" className="text-blue-600 hover:text-blue-700 text-sm mt-2 inline-block">
+                      Start your first sale
+                    </a>
                   </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* System Alerts */}
+          {/* Right Column - Stats */}
+          <div className="space-y-6">
+            {/* Performance Stats */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center mb-6">
-                <AlertCircle className="h-6 w-6 text-orange-500 mr-3" />
-                <h2 className="text-lg font-semibold text-gray-800">System Alerts</h2>
+                <TrendingUp className="h-6 w-6 text-blue-600 mr-3" />
+                <h2 className="text-lg font-semibold text-gray-800">Your Performance</h2>
               </div>
               
               <div className="space-y-4">
-                {stats.inventoryLowStock > 0 ? (
-                  <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                    <div className="flex items-center">
-                      <Package className="h-5 w-5 text-orange-600 mr-3" />
-                      <div>
-                        <h4 className="font-medium text-orange-800">Low Stock Alert</h4>
-                        <p className="text-sm text-orange-700 mt-1">
-                          {stats.inventoryLowStock} item{stats.inventoryLowStock !== 1 ? 's' : ''} {stats.inventoryLowStock === 1 ? 'is' : 'are'} running low. Please restock.
-                        </p>
-                        {lowStockItems.length > 0 && (
-                          <ul className="mt-2 text-xs text-orange-600">
-                            {lowStockItems.slice(0, 2).map((item, index) => (
-                              <li key={index}>• {item.productName}: {item.currentStock} left</li>
-                            ))}
-                            {lowStockItems.length > 2 && (
-                              <li>• and {lowStockItems.length - 2} more...</li>
-                            )}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center">
-                      <CheckCircle className="h-5 w-5 text-green-600 mr-3" />
-                      <div>
-                        <h4 className="font-medium text-green-800">All Systems Operational</h4>
-                        <p className="text-sm text-green-700 mt-1">
-                          Inventory levels are good. No immediate actions needed.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center">
-                    <Calendar className="h-5 w-5 text-blue-600 mr-3" />
+                    <DollarSign className="h-5 w-5 text-blue-600 mr-3" />
                     <div>
-                      <h4 className="font-medium text-blue-800">Shift Reminder</h4>
-                      <p className="text-sm text-blue-700 mt-1">
-                        Your shift ends in 2 hours. Ensure all transactions are complete.
+                      <h4 className="font-medium text-blue-800">Average Transaction</h4>
+                      <p className="text-lg font-bold text-blue-900 mt-1">
+                        {formatCurrency(calculateAverageTransaction())}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center">
+                    <ShoppingCart className="h-5 w-5 text-green-600 mr-3" />
+                    <div>
+                      <h4 className="font-medium text-green-800">Transaction Rate</h4>
+                      <p className="text-lg font-bold text-green-900 mt-1">
+                        {calculateTransactionsPerHour()} per hour
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Info */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center mb-6">
+                <CheckCircle className="h-6 w-6 text-green-600 mr-3" />
+                <h2 className="text-lg font-semibold text-gray-800">Quick Info</h2>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="flex items-center">
+                    <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                      <ShoppingCart className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-800">Total Sales Today</h4>
+                      <p className="text-lg font-bold text-gray-900 mt-1">
+                        {formatCurrency(stats.todaySales)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="flex items-center">
+                    <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                      <Package className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-800">Transactions</h4>
+                      <p className="text-lg font-bold text-gray-900 mt-1">
+                        {stats.todayTransactions}
                       </p>
                     </div>
                   </div>
@@ -702,54 +696,6 @@ const CashierDashboard = () => {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Bottom Stats */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center">
-              <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                <TrendingUp className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Best Selling Hour</p>
-                <p className="font-medium text-gray-800">{dailyStats.bestSellingHour}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center">
-              <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                <DollarSign className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Highest Transaction</p>
-                <p className="font-medium text-gray-800">{formatCurrency(dailyStats.highestTransaction)}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center">
-              <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                <Clock className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Avg. Transaction Time</p>
-                <p className="font-medium text-gray-800">{dailyStats.avgTransactionTime || 0} minutes</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <p>Dashboard updated at {currentTime.toLocaleTimeString('en-NG', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            second: '2-digit'
-          })} • Powered by Springcore Africa POS</p>
         </div>
       </div>
     </div>

@@ -10,7 +10,9 @@ import {
   X,
   Menu,
   Sun,
-  Moon
+  Moon,
+  Store,
+  User as UserIcon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,29 +26,118 @@ const CashierTopNav = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [pictureLoaded, setPictureLoaded] = useState(false);
+  const [pictureError, setPictureError] = useState(false);
   
   const navigate = useNavigate();
   const profileMenuRef = useRef(null);
   const notificationsRef = useRef(null);
   const messagesRef = useRef(null);
 
-  // Load user data from localStorage
+  // Load user data from localStorage and fetch profile picture
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        console.error('Error parsing user data:', error);
+    const loadUserData = () => {
+      // Try to get user data from storage
+      const userDataString = localStorage.getItem('userData');
+      const token = localStorage.getItem('token');
+      
+      if (userDataString) {
+        try {
+          const parsedUser = JSON.parse(userDataString);
+          setUser(parsedUser);
+          
+          // Extract and load profile picture
+          if (parsedUser.picture) {
+            loadProfilePicture(parsedUser.picture);
+          }
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
       }
+
+      // Load dark mode preference
+      const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+      setDarkMode(savedDarkMode);
+      if (savedDarkMode) {
+        document.documentElement.classList.add('dark');
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  // Function to load profile picture from backend
+  const loadProfilePicture = (pictureString) => {
+    if (!pictureString) {
+      setPictureError(true);
+      return;
     }
 
-    // Load dark mode preference
-    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
-    setDarkMode(savedDarkMode);
-    if (savedDarkMode) {
-      document.documentElement.classList.add('dark');
+    // Check if pictureString is already a URL
+    if (pictureString.startsWith('http')) {
+      setProfilePicture(pictureString);
+      return;
     }
+
+    // If it's a base64 string, handle it
+    if (pictureString.startsWith('data:image')) {
+      setProfilePicture(pictureString);
+      return;
+    }
+
+    // If it's a filename/path from backend
+    const baseUrl = 'https://sales-system-production.up.railway.app';
+    let pictureUrl = pictureString;
+    
+    // If it's just a filename, prepend uploads path
+    if (!pictureString.includes('/') && !pictureString.startsWith('http')) {
+      pictureUrl = `${baseUrl}/uploads/${pictureString}`;
+    }
+    
+    // If it starts with uploads/, prepend base URL
+    if (pictureString.startsWith('uploads/')) {
+      pictureUrl = `${baseUrl}/${pictureString}`;
+    }
+
+    setProfilePicture(pictureUrl);
+    setPictureError(false);
+  };
+
+  // Fetch user details from API to ensure picture is up to date
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const response = await fetch('https://sales-system-production.up.railway.app/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            // Update user data
+            setUser(data.user);
+            localStorage.setItem('userData', JSON.stringify(data.user));
+            
+            // Update profile picture
+            if (data.user.picture) {
+              loadProfilePicture(data.user.picture);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+      }
+    };
+
+    // Fetch user data on component mount
+    fetchUserData();
   }, []);
 
   // Mock notifications and messages data
@@ -150,7 +241,8 @@ const CashierTopNav = () => {
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userData');
     navigate('/login');
   };
 
@@ -184,36 +276,101 @@ const CashierTopNav = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
-      // Implement search functionality
       console.log('Searching for:', searchTerm);
-      // You can navigate to search results or filter content
+      // You can add search functionality here
     }
   };
 
-  // Get user initials for avatar
+  // Get user initials for avatar fallback
   const getUserInitials = () => {
-    if (!user) return 'U';
-    const { firstName = '', lastName = '' } = user;
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    if (!user) return 'C';
+    
+    const firstName = user.firstName || user.name || '';
+    const lastName = user.lastName || '';
+    
+    if (firstName && lastName) {
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    } else if (firstName) {
+      return firstName.charAt(0).toUpperCase();
+    } else if (user.username) {
+      return user.username.charAt(0).toUpperCase();
+    } else if (user.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    
+    return 'C';
   };
 
   // Get user full name
   const getUserFullName = () => {
     if (!user) return 'Cashier';
-    const { firstName = '', lastName = '' } = user;
-    return `${firstName} ${lastName}`.trim();
+    
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    } else if (user.firstName) {
+      return user.firstName;
+    } else if (user.name) {
+      return user.name;
+    } else if (user.username) {
+      return user.username;
+    } else if (user.email) {
+      return user.email.split('@')[0];
+    }
+    
+    return 'Cashier';
+  };
+
+  // Get user display name for navbar
+  const getUserDisplayName = () => {
+    if (!user) return 'Cashier';
+    
+    if (user.firstName) {
+      return user.firstName;
+    } else if (user.username) {
+      return user.username;
+    } else if (user.name) {
+      return user.name;
+    } else if (user.email) {
+      return user.email.split('@')[0];
+    }
+    
+    return 'Cashier';
   };
 
   // Get user role
   const getUserRole = () => {
     if (!user) return 'Cashier';
-    return user.role || 'Cashier';
+    return user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Cashier';
+  };
+
+  // Get store/business name
+  const getStoreName = () => {
+    return localStorage.getItem('storeName') || 'Sales System';
+  };
+
+  // Handle image load error
+  const handleImageError = () => {
+    setPictureError(true);
+    setPictureLoaded(false);
+  };
+
+  // Handle image load success
+  const handleImageLoad = () => {
+    setPictureLoaded(true);
+    setPictureError(false);
+  };
+
+  // Refresh profile picture
+  const refreshProfilePicture = () => {
+    if (user?.picture) {
+      loadProfilePicture(user.picture);
+    }
   };
 
   return (
-    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 shadow-sm">
-      <div className="flex items-center justify-between">
-        {/* Left side - Logo and Mobile Menu */}
+    <nav className="w-full bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between w-full">
+        {/* Left side - User/Store Name and Mobile Menu */}
         <div className="flex items-center">
           {/* Mobile menu button */}
           <button
@@ -223,14 +380,16 @@ const CashierTopNav = () => {
             <Menu className="h-5 w-5 text-gray-600 dark:text-gray-300" />
           </button>
 
-          {/* Logo/Brand */}
-          <div className="hidden md:flex items-center">
-            <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
-              <span className="text-white font-bold text-sm">SC</span>
+          {/* User/Store Info */}
+          <div className="flex items-center">
+            <div>
+              <div className="text-sm font-semibold text-gray-800 dark:text-white">
+                {getUserFullName()}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {getUserRole()} • {getStoreName()}
+              </div>
             </div>
-            <span className="text-xl font-bold text-gray-800 dark:text-white hidden lg:block">
-              Springcore POS
-            </span>
           </div>
         </div>
 
@@ -241,7 +400,7 @@ const CashierTopNav = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search transactions, products, customers..."
+                placeholder="Search transactions, products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white outline-none"
@@ -471,17 +630,28 @@ const CashierTopNav = () => {
               }}
               className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
             >
-              {/* User Avatar */}
-              <div className="h-9 w-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-semibold text-sm">
-                  {getUserInitials()}
-                </span>
+              {/* User Avatar with Profile Picture */}
+              <div className="h-9 w-9 rounded-full overflow-hidden border-2 border-blue-500 flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+                {profilePicture && !pictureError ? (
+                  <img 
+                    src={profilePicture} 
+                    alt={getUserFullName()}
+                    className="h-full w-full object-cover"
+                    onLoad={handleImageLoad}
+                    onError={handleImageError}
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="text-white font-semibold text-sm">
+                    {getUserInitials()}
+                  </span>
+                )}
               </div>
               
               {/* User Info (Desktop only) */}
               <div className="hidden md:block text-left">
                 <div className="font-medium text-gray-800 dark:text-white">
-                  {getUserFullName()}
+                  {getUserDisplayName()}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
                   {getUserRole()}
@@ -496,21 +666,37 @@ const CashierTopNav = () => {
             {/* Profile Dropdown Menu */}
             {showProfileMenu && (
               <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                {/* User Info Section */}
+                {/* User Info Section with Larger Profile Picture */}
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center">
-                    <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white font-semibold text-lg">
-                        {getUserInitials()}
-                      </span>
+                    <div className="h-14 w-14 rounded-full overflow-hidden border-3 border-blue-500 flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+                      {profilePicture && !pictureError ? (
+                        <img 
+                          src={profilePicture} 
+                          alt={getUserFullName()}
+                          className="h-full w-full object-cover"
+                          onLoad={handleImageLoad}
+                          onError={handleImageError}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="text-white font-semibold text-lg">
+                          {getUserInitials()}
+                        </span>
+                      )}
                     </div>
                     <div className="ml-3">
                       <h3 className="font-semibold text-gray-800 dark:text-white">
                         {getUserFullName()}
                       </h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {getUserRole()}
+                        {getUserRole()} • {getStoreName()}
                       </p>
+                      {user?.email && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                          {user.email}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -518,19 +704,29 @@ const CashierTopNav = () => {
                 {/* Menu Items */}
                 <div className="py-2">
                   <button
-                    onClick={() => navigate('/profile')}
+                    onClick={() => navigate('/cashier-profile')}
                     className="w-full flex items-center px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
-                    <User className="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
+                    <UserIcon className="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
                     My Profile
                   </button>
                   
                   <button
-                    onClick={() => navigate('/settings')}
+                    onClick={() => navigate('/settings#')}
                     className="w-full flex items-center px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <Settings className="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
                     Settings
+                  </button>
+                  
+                  <button
+                    onClick={refreshProfilePicture}
+                    className="w-full flex items-center px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <svg className="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh Picture
                   </button>
                   
                   <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>

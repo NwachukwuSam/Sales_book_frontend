@@ -9,43 +9,160 @@ const TopNav = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [pictureError, setPictureError] = useState(false);
 
-useEffect(() => {
-  const fetchUser = async () => {
-    try {
-      const token = localStorage.getItem("token");
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem("token");
 
-      if (!token) {
-        setIsLoadingUser(false);
-        return;
-      }
-
-      const response = await fetch(
-        "https://sales-system-production.up.railway.app/api/auth/me",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        if (!token) {
+          setIsLoadingUser(false);
+          return;
         }
-      );
 
-      if (!response.ok) throw new Error("Failed to fetch user");
+        const response = await fetch(
+          "https://sales-system-production.up.railway.app/api/auth/me",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      const data = await response.json();
-      console.log("ME RESPONSE:", data);
+        if (!response.ok) throw new Error("Failed to fetch user");
 
-      setUser(data.user || data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoadingUser(false);
+        const data = await response.json();
+        console.log("ME RESPONSE:", data);
+
+        const userData = data.user || data;
+        setUser(userData);
+        
+        // Load profile picture from user data
+        if (userData.picture) {
+          loadProfilePicture(userData.picture);
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoadingUser(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  // Function to load profile picture from backend
+  const loadProfilePicture = (pictureString) => {
+    if (!pictureString) {
+      setPictureError(true);
+      return;
+    }
+
+    // Check if pictureString is already a URL
+    if (pictureString.startsWith('http')) {
+      setProfilePicture(pictureString);
+      return;
+    }
+
+    // If it's a base64 string, handle it
+    if (pictureString.startsWith('data:image')) {
+      setProfilePicture(pictureString);
+      return;
+    }
+
+    // If it's a filename/path from backend
+    const baseUrl = 'https://sales-system-production.up.railway.app';
+    let pictureUrl = pictureString;
+    
+    // If it's just a filename, prepend uploads path
+    if (!pictureString.includes('/') && !pictureString.startsWith('http')) {
+      pictureUrl = `${baseUrl}/uploads/${pictureString}`;
+    }
+    
+    // If it starts with uploads/, prepend base URL
+    if (pictureString.startsWith('uploads/')) {
+      pictureUrl = `${baseUrl}/${pictureString}`;
+    }
+
+    setProfilePicture(pictureUrl);
+    setPictureError(false);
+  };
+
+  // Refresh profile picture
+  const refreshProfilePicture = () => {
+    if (user?.picture) {
+      loadProfilePicture(user.picture);
     }
   };
 
-  fetchUser();
-}, []);
+  // Get user initials for avatar fallback
+  const getUserInitials = () => {
+    if (!user) return 'U';
+    
+    const firstName = user.firstName || user.name || '';
+    const lastName = user.lastName || '';
+    
+    if (firstName && lastName) {
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    } else if (firstName) {
+      return firstName.charAt(0).toUpperCase();
+    } else if (user.username) {
+      return user.username.charAt(0).toUpperCase();
+    } else if (user.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    
+    return 'U';
+  };
 
+  // Get user full name
+  const getUserFullName = () => {
+    if (!user) return 'User';
+    
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    } else if (user.firstName) {
+      return user.firstName;
+    } else if (user.name) {
+      return user.name;
+    } else if (user.username) {
+      return user.username;
+    } else if (user.email) {
+      return user.email.split('@')[0];
+    }
+    
+    return 'User';
+  };
 
+  // Get user display name for navbar
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    
+    if (user.firstName) {
+      return user.firstName;
+    } else if (user.username) {
+      return user.username;
+    } else if (user.name) {
+      return user.name;
+    } else if (user.email) {
+      return user.email.split('@')[0];
+    }
+    
+    return 'User';
+  };
+
+  // Get user role
+  const getUserRole = () => {
+    if (!user) return 'User';
+    return user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User';
+  };
+
+  // Handle image load error
+  const handleImageError = () => {
+    setPictureError(true);
+  };
 
   // Sample notifications
   const notifications = [
@@ -135,10 +252,11 @@ useEffect(() => {
   };
 
   const handleLogout = () => {
-  localStorage.removeItem("token");
-  window.location.href = "/login";
-};
-
+    localStorage.removeItem("token");
+    localStorage.removeItem("userData");
+    localStorage.removeItem("userRole");
+    window.location.href = "/login";
+  };
 
   return (
     <nav className="topnav" onClick={() => {
@@ -147,10 +265,14 @@ useEffect(() => {
     }}>
       <div className="topnav-left">
         <div className="logo flex" onClick={handleLogoClick}>
-    
           <span className="logo-text">
-            {isLoadingUser ? "Loading..." : `${user?.firstName} ${user?.lastName}`}
+            {isLoadingUser ? "Loading..." : getUserFullName()}
           </span>
+          {user && (
+            <span className="user-role-badge">
+              {getUserRole()}
+            </span>
+          )}
         </div>
       </div>
 
@@ -243,11 +365,19 @@ useEffect(() => {
               onClick={handleProfileClick}
               ref={profileButtonRef}
             >
-              <img
-                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
-                    `${user?.firstName} ${user?.lastName}`
-                  )}&background=random`}
+              {profilePicture && !pictureError ? (
+                <img
+                  src={profilePicture}
+                  alt={getUserFullName()}
+                  className="profile-image"
+                  onError={handleImageError}
+                  loading="lazy"
                 />
+              ) : (
+                <div className="profile-fallback">
+                  {getUserInitials()}
+                </div>
+              )}
             </div>
 
             {/* Profile Dropdown */}
@@ -258,16 +388,24 @@ useEffect(() => {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="profile-info">
+                  {profilePicture && !pictureError ? (
                     <img
-                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
-                          `${user?.firstName} ${user?.lastName}`
-                        )}&background=random`}
-                        className="dropdown-avatar"
-                      />
-                     <div className="user-info">
-                      <div className="user-name">{user?.firstName} {user?.lastName}</div>
-                      <div className="user-email">{user?.email}</div>
+                      src={profilePicture}
+                      alt={getUserFullName()}
+                      className="dropdown-avatar"
+                      onError={handleImageError}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="dropdown-avatar-fallback">
+                      {getUserInitials()}
                     </div>
+                  )}
+                  <div className="user-info">
+                    <div className="user-name">{getUserFullName()}</div>
+                    <div className="user-email">{user?.email || 'No email'}</div>
+                    <div className="user-role">{getUserRole()}</div>
+                  </div>
                 </div>
                 <div className="dropdown-content">
                   <a 
@@ -291,6 +429,15 @@ useEffect(() => {
                     </svg>
                     Settings
                   </a>
+                  <button 
+                    onClick={refreshProfilePicture}
+                    className="dropdown-item"
+                  >
+                    <svg className="dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh Picture
+                  </button>
                   <div className="dropdown-divider"></div>
                   <button 
                     onClick={handleLogout} 

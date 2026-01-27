@@ -16,7 +16,6 @@ import {
   MoreVertical,
   Loader2
 } from 'lucide-react';
-import TopNav from '../TopNav';
 import { format } from 'date-fns';
 import CashierTopNav from './CashierTopNav';
 
@@ -239,7 +238,7 @@ const CashierSalesHistory = () => {
   if (loading && salesData.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <TopNav />
+        <CashierTopNav />
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           <span className="ml-2 text-gray-600">Loading sales history...</span>
@@ -249,12 +248,12 @@ const CashierSalesHistory = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 md:p-4 lg:p-6">
-      <CashierTopNav />
-      <div className="max-w-full mx-auto">
+    <div className="min-h-screen bg-gray-50">
+        <CashierTopNav />
+      <div className="max-w-full mx-auto p-4 md:p-6">
         {/* Header */}
-        <div className="mb-4 md:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        <div className="mb-1 md:mb-1 p-2 md:p-4 lg:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               
               <p className="text-xs md:text-sm text-gray-600 mt-1">
@@ -297,10 +296,37 @@ const CashierSalesHistory = () => {
         {error && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
             <p className="text-sm text-yellow-800">
-              ⚠️ {error}. Showing demo data.
+               {error}. Showing demo data.
             </p>
           </div>
         )}
+        {/* Summary Stats */}
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 mb-7 gap-2 md:gap-3">
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-gray-900">
+              {summary.transactions}
+            </div>
+            <div className="text-xs text-gray-600">Transactions</div>
+          </div>
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-green-600">
+              {formatCurrency(summary.today)}
+            </div>
+            <div className="text-xs text-gray-600">Today</div>
+          </div>
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-blue-600">
+              {formatCurrency(summary.average)}
+            </div>
+            <div className="text-xs text-gray-600">Average Sale</div>
+          </div>
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-lg md:text-xl font-bold text-purple-600">
+              {formatCurrency(summary.total)}
+            </div>
+            <div className="text-xs text-gray-600">Total Revenue</div>
+          </div>
+        </div>
 
         {/* Filter Panel */}
         {filterOpen && (
@@ -395,17 +421,26 @@ const CashierSalesHistory = () => {
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <div className="flex items-center">
-                          <span className="text-gray-900 text-xs truncate max-w-[120px]">
-                            {sale.item?.name || 'Unknown Item'}
+                          <div className="flex flex-col">
+                            {sale.items?.map ((item, index) => (
+                              <div key={index} className="flex items-center justify-between mb-1 last:mb-0">
+                                <span className="text-gray-900 text-xs truncate max-w-[100px]">
+                                  {item.name}
+                                </span>
+                                <span className="ml-2 text-xs text-gray-500">
+                                  x{item.quantity}
+                                </span>
+                              </div>
+                            )) || 'No items'}
+                          </div>
+                        </td>
+
+                        {/* Quantity Cell - Show total quantity */}
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                            {sale.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                          {sale.quantity || 0}
-                        </span>
-                      </td>
+                        </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="font-semibold text-gray-900 text-xs">
                           {formatCurrency(sale.totalAmount)}
@@ -620,33 +655,7 @@ const CashierSalesHistory = () => {
           </div>
         )}
 
-        {/* Summary Stats */}
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-          <div className="bg-white p-3 rounded border border-gray-200">
-            <div className="text-lg md:text-xl font-bold text-gray-900">
-              {summary.transactions}
-            </div>
-            <div className="text-xs text-gray-600">Transactions</div>
-          </div>
-          <div className="bg-white p-3 rounded border border-gray-200">
-            <div className="text-lg md:text-xl font-bold text-green-600">
-              {formatCurrency(summary.today)}
-            </div>
-            <div className="text-xs text-gray-600">Today</div>
-          </div>
-          <div className="bg-white p-3 rounded border border-gray-200">
-            <div className="text-lg md:text-xl font-bold text-blue-600">
-              {formatCurrency(summary.average)}
-            </div>
-            <div className="text-xs text-gray-600">Average Sale</div>
-          </div>
-          <div className="bg-white p-3 rounded border border-gray-200">
-            <div className="text-lg md:text-xl font-bold text-purple-600">
-              {formatCurrency(summary.total)}
-            </div>
-            <div className="text-xs text-gray-600">Total Revenue</div>
-          </div>
-        </div>
+        
       </div>
     </div>
   );

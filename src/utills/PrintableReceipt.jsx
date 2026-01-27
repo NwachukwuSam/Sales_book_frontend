@@ -16,9 +16,9 @@ const PrintableReceipt = ({ data }) => {
     <div className="printable-receipt bg-white p-8 max-w-md mx-auto">
       {/* Receipt Header */}
       <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">Springcore Africa POS</h1>
-        <p className="text-gray-600 text-sm">Main Branch, Lagos</p>
-        <p className="text-gray-600 text-sm">Tel: 01-2345678 | Email: info@springcore.africa</p>
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">Pasorido Supermarket</h1>
+        <p className="text-gray-600 text-sm">Main Branch, Azuba, Lafia</p>
+        <p className="text-gray-600 text-sm">Tel: 01-2345678 | Email: info@pasorido.com</p>
       </div>
       
       <div className="border-t border-b border-gray-300 py-3 mb-4">

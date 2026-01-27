@@ -14,7 +14,8 @@ import {
   Clock,
   Eye,
   MoreVertical,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import TopNav from '../TopNav';
 import { format } from 'date-fns';
@@ -27,6 +28,7 @@ const SalesHistory = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
   const [salesData, setSalesData] = useState([]);
   const [pagination, setPagination] = useState({
@@ -115,7 +117,6 @@ const SalesHistory = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-
   const handleFilterToggle = (filterId) => {
     if (selectedFilters.includes(filterId)) {
       setSelectedFilters(selectedFilters.filter(id => id !== filterId));
@@ -134,34 +135,146 @@ const SalesHistory = () => {
     }
   };
 
-  const handleExport = async () => {
+  // Export to CSV function
+  const handleExport = async (format = 'csv') => {
     try {
+      setExporting(true);
+      
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       
-      const response = await fetch(`${API_URL}/export`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      // If there's an export API endpoint, use it
+      try {
+        const exportResponse = await fetch(`${API_URL}/export?format=${format}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        });
+        
+        if (exportResponse.ok) {
+          const blob = await exportResponse.blob();
+          downloadBlob(blob, `sales-history-${format}-${new Date().toISOString().split('T')[0]}.${format}`);
+          return;
         }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Export failed');
+      } catch (apiErr) {
+        console.log('Export API not available, using client-side export');
       }
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sales-history-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Client-side CSV generation
+      const csvData = generateCSVData();
+      
+      // Create CSV content
+      const csvContent = arrayToCSV(csvData);
+      
+      // Create and download file
+      const blob = new Blob([csvContent], { type: `text/${format};charset=utf-8;` });
+      downloadBlob(blob, `sales-history-${new Date().toISOString().split('T')[0]}.${format}`);
       
     } catch (err) {
       console.error('Export error:', err);
-      alert('Failed to export data. Please try again.');
+      setError('Failed to export data. Please try again.');
+    } finally {
+      setExporting(false);
     }
+  };
+
+  // Generate CSV data from sales
+  const generateCSVData = () => {
+    const headers = [
+      'Transaction ID',
+      'Date & Time',
+      'Items',
+      'Quantity',
+      'Unit Price',
+      'Total Amount',
+      'Payment Method',
+      'Cashier',
+      'Status'
+    ];
+    
+    const rows = salesData.map(sale => {
+      // Combine all items into a string
+      const itemsList = sale.items?.map(item => 
+        `${item.name || 'Unknown Item'} (${item.quantity || 0})`
+      ).join('; ') || 'No items';
+      
+      // Calculate total quantity
+      const totalQuantity = sale.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+      
+      // Get first item's price for reference (or calculate average)
+      const unitPrice = sale.items?.length > 0 
+        ? sale.items[0].price || 0 
+        : sale.totalAmount / Math.max(totalQuantity, 1);
+      
+      return [
+        sale.transactionId || sale._id?.slice(-8).toUpperCase() || 'N/A',
+        format(new Date(sale.createdAt || sale.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+        itemsList,
+        totalQuantity.toString(),
+        formatCurrencyValue(unitPrice),
+        formatCurrencyValue(sale.totalAmount || 0),
+        sale.paymentMethod || 'Unknown',
+        sale.soldBy?.name || sale.soldBy?.username || 'Unknown',
+        'Completed'
+      ];
+    });
+    
+    // Add summary row
+    const summary = calculateSummary();
+    rows.push([
+      '', '', '', '', '', '', '', '', ''
+    ]);
+    rows.push([
+      'SUMMARY', '', '', '', '', '', '', '', ''
+    ]);
+    rows.push([
+      'Total Transactions:', '', summary.transactions.toString(), '', '', '', '', '', ''
+    ]);
+    rows.push([
+      'Today\'s Sales:', '', '', '', '', formatCurrencyValue(summary.today), '', '', ''
+    ]);
+    rows.push([
+      'Total Revenue:', '', '', '', '', formatCurrencyValue(summary.total), '', '', ''
+    ]);
+    rows.push([
+      'Average Sale:', '', '', '', '', formatCurrencyValue(summary.average), '', '', ''
+    ]);
+    rows.push([
+      'Generated:', format(new Date(), 'yyyy-MM-dd HH:mm:ss'), '', '', '', '', '', '', ''
+    ]);
+    
+    return [headers, ...rows];
+  };
+
+  // Helper function to convert array to CSV
+  const arrayToCSV = (data) => {
+    return data.map(row => 
+      row.map(cell => {
+        // Escape quotes and wrap in quotes if contains comma, quotes, or newline
+        if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))) {
+          return `"${cell.replace(/"/g, '""')}"`;
+        }
+        return cell;
+      }).join(',')
+    ).join('\n');
+  };
+
+  // Helper function to download blob
+  const downloadBlob = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  // Format currency value for CSV (without symbol)
+  const formatCurrencyValue = (amount) => {
+    if (!amount) return '0.00';
+    const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]+/g, '')) : amount;
+    return num.toFixed(2);
   };
 
   const formatCurrency = (amount) => {
@@ -234,6 +347,162 @@ const SalesHistory = () => {
 
   const summary = calculateSummary();
 
+  // Export dropdown component
+  const ExportDropdown = () => (
+    <div className="relative">
+      <button
+        disabled={exporting || salesData.length === 0}
+        onClick={() => document.getElementById('export-dropdown').classList.toggle('hidden')}
+        className="flex items-center space-x-1 px-2 py-1.5 md:px-3 md:py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs md:text-sm disabled:opacity-50"
+      >
+        {exporting ? (
+          <>
+            <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
+            <span>Exporting...</span>
+          </>
+        ) : (
+          <>
+            <Download className="w-3 h-3 md:w-4 md:h-4" />
+            <span>Export</span>
+            <ChevronDown className="w-3 h-3 md:w-4 md:h-4" />
+          </>
+        )}
+      </button>
+      
+      <div
+        id="export-dropdown"
+        className="hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10"
+      >
+        <div className="py-1">
+          <button
+            onClick={() => {
+              handleExport('csv');
+              document.getElementById('export-dropdown').classList.add('hidden');
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Export as CSV
+          </button>
+          <button
+            onClick={() => {
+              exportToPDF();
+              document.getElementById('export-dropdown').classList.add('hidden');
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Export as PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const exportToPDF = () => {
+    
+    const printContent = `
+      <html>
+        <head>
+          <title>Sales History Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .header p { margin: 5px 0; color: #666; }
+            .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+            .summary-item { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+            .summary-title { font-size: 12px; color: #666; margin-bottom: 5px; }
+            .summary-value { font-size: 18px; font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #f3f4f6; text-align: left; padding: 8px; border: 1px solid #ddd; font-size: 12px; }
+            td { padding: 8px; border: 1px solid #ddd; font-size: 12px; }
+            .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #333; font-size: 12px; color: #666; text-align: center; }
+            @media print {
+              @page { margin: 0.5in; }
+              body { margin: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Sales History Report</h1>
+            <p>Generated on: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>
+            <p>Total Records: ${salesData.length}</p>
+          </div>
+          
+          <div class="summary">
+            <div class="summary-item">
+              <div class="summary-title">Total Transactions</div>
+              <div class="summary-value">${summary.transactions}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-title">Today's Sales</div>
+              <div class="summary-value">${formatCurrency(summary.today)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-title">Average Sale</div>
+              <div class="summary-value">${formatCurrency(summary.average)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-title">Total Revenue</div>
+              <div class="summary-value">${formatCurrency(summary.total)}</div>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Date</th>
+                <th>Items</th>
+                <th>Qty</th>
+                <th>Total Amount</th>
+                <th>Payment Method</th>
+                <th>Cashier</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${salesData.map(sale => {
+                const itemsList = sale.items?.map(item => 
+                  `${item.name || 'Unknown Item'} (${item.quantity || 0})`
+                ).join(', ') || 'No items';
+                const totalQuantity = sale.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+                
+                return `
+                  <tr>
+                    <td>${sale.transactionId || sale._id?.slice(-8).toUpperCase() || 'N/A'}</td>
+                    <td>${format(new Date(sale.createdAt || sale.timestamp), 'yyyy-MM-dd HH:mm')}</td>
+                    <td>${itemsList}</td>
+                    <td>${totalQuantity}</td>
+                    <td>${formatCurrency(sale.totalAmount || 0)}</td>
+                    <td>${sale.paymentMethod || 'Unknown'}</td>
+                    <td>${sale.soldBy?.name || sale.soldBy?.username || 'Unknown'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            <p>Report generated by Sales System</p>
+            <p>Page 1 of 1</p>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    // Open print window
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Wait for content to load, then print
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
+  };
 
   if (loading && salesData.length === 0) {
     return (
@@ -255,7 +524,7 @@ const SalesHistory = () => {
         <div className="mb-4 md:mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
             <div>
-              
+             
               <p className="text-xs md:text-sm text-gray-600 mt-1">
                 {error ? 'Using demo data' : `${pagination.total} transactions found`}
               </p>
@@ -270,13 +539,7 @@ const SalesHistory = () => {
                 <span>Filters</span>
               </button>
               
-              <button 
-                onClick={handleExport}
-                className="flex items-center space-x-1 px-2 py-1.5 md:px-3 md:py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs md:text-sm"
-              >
-                <Download className="w-3 h-3 md:w-4 md:h-4" />
-                <span>Export</span>
-              </button>
+              <ExportDropdown />
             </div>
           </div>
           
@@ -296,7 +559,7 @@ const SalesHistory = () => {
         {error && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
             <p className="text-sm text-yellow-800">
-              ⚠️ {error}. Showing demo data.
+               {error}. Showing demo data.
             </p>
           </div>
         )}
@@ -394,17 +657,26 @@ const SalesHistory = () => {
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <div className="flex items-center">
-                          <span className="text-gray-900 text-xs truncate max-w-[120px]">
-                            {sale.item?.name || 'Unknown Item'}
+                          <div className="flex flex-col">
+                            {sale.items?.map ((item, index) => (
+                              <div key={index} className="flex items-center justify-between mb-1 last:mb-0">
+                                <span className="text-gray-900 text-xs truncate max-w-[100px]">
+                                  {item.name}
+                                </span>
+                                <span className="ml-2 text-xs text-gray-500">
+                                  x{item.quantity}
+                                </span>
+                              </div>
+                            )) || 'No items'}
+                          </div>
+                        </td>
+
+                        {/* Quantity Cell - Show total quantity */}
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                            {sale.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                          {sale.quantity || 0}
-                        </span>
-                      </td>
+                        </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="font-semibold text-gray-900 text-xs">
                           {formatCurrency(sale.totalAmount)}

@@ -20,6 +20,14 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  
+  
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userData");
+    window.location.href = "/login";
+  };
 
   const menuItems = [
     { 
@@ -59,11 +67,12 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
       path: '/users'
     },
     { 
-      id: 'settings', 
-      label: 'Settings', 
+      id: 'expenses', 
+      label: 'Expenses', 
       icon: <Settings className="w-5 h-5" />,
-      path: '/user-roles'
+      path: '/expenses'
     },
+    
   ];
 
   const getActiveSectionFromPath = () => {
@@ -143,8 +152,7 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
               transition-all duration-200
             "
             onClick={() => {
-              // Add logout logic here
-              console.log('Logout clicked');
+              handleLogout();
             }}
           >
             <LogOut className="w-5 h-5" />

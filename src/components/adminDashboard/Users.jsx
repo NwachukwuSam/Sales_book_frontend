@@ -29,7 +29,7 @@ const AddUserModal = ({ isVisible, onClose, onSave, isLoading }) => {
   const [uploadError, setUploadError] = useState('');
 
   const CLOUDINARY_CLOUD_NAME = 'dwqxxunes';
-  const CLOUDINARY_UPLOAD_PRESET = 'user_profiles';
+  const CLOUDINARY_UPLOAD_PRESET = 'sales_book';
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -388,7 +388,8 @@ const AddUserModal = ({ isVisible, onClose, onSave, isLoading }) => {
                   username: '',
                   email: '',
                   password: '',
-                  phoneNumber: ''
+                  phoneNumber: '',
+                  role: 'cashier'
                 });
               }}
               disabled={isUploading || isLoading}
@@ -742,6 +743,7 @@ const Users = () => {
         username: userData.username,
         email: userData.email,
         password: userData.password,
+        role: 'cashier',
         phoneNumber: userData.phoneNumber,
         picture: userData.picture || ''
       };
@@ -900,8 +902,7 @@ const Users = () => {
       />
 
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">User Roles</h1>
-        <p className="text-gray-600 mt-2">Manage user accounts and permissions</p>
+        
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

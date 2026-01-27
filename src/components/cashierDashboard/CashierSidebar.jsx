@@ -20,6 +20,14 @@ const CashierSidebar = ({ activeSection, setActiveSection }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  
+  
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userData");
+    window.location.href = "/login";
+  };
 
   const menuItems = [
     { 
@@ -38,45 +46,33 @@ const CashierSidebar = ({ activeSection, setActiveSection }) => {
       id: 'pos', 
       label: 'POS System', 
       icon: <ShoppingCart className="w-5 h-5" />,
-      path: '/pos'
+      path: '/pos-page'
     },
-    
-    // { 
-    //   id: 'inventory', 
-    //   label: 'Inventory', 
-    //   icon: <Package className="w-5 h-5" />,
-    //   path: '/cashier-inventory'
-    // },
     { 
       id: 'sales-history', 
       label: 'My Sales', 
       icon: <History className="w-5 h-5" />,
       path: '/cashier-sales-history'
     },
+    
     // { 
-    //   id: 'today-transactions', 
-    //   label: 'Today\'s Transactions', 
-    //   icon: <Clock className="w-5 h-5" />,
-    //   path: '/today-transactions'
+    //   id: 'receipts', 
+    //   label: 'Receipts', 
+    //   icon: <Receipt className="w-5 h-5" />,
+    //   path: '/receipts'
     // },
-    { 
-      id: 'receipts', 
-      label: 'Receipts', 
-      icon: <Receipt className="w-5 h-5" />,
-      path: '/receipts'
+     { 
+      id: 'inventory', 
+      label: 'Inventory', 
+      icon: <Package className="w-5 h-5" />,
+      path: '/cashier-inventory'
     },
-    { 
-      id: 'reports', 
-      label: 'Daily Report', 
-      icon: <FileText className="w-5 h-5" />,
-      path: '/cashier-report'
-    },
-    { 
-      id: 'settings', 
-      label: 'My Settings', 
-      icon: <Settings className="w-5 h-5" />,
-      path: '/cashier-settings'
-    },
+    // { 
+    //   id: 'settings', 
+    //   label: 'My Settings', 
+    //   icon: <Settings className="w-5 h-5" />,
+    //   path: '/cashier-settings'
+    // },
   ];
 
   // Determine active section based on current route
@@ -168,9 +164,7 @@ const CashierSidebar = ({ activeSection, setActiveSection }) => {
               transition-all duration-200
             "
             onClick={() => {
-              // Add cashier-specific logout logic here
-              console.log('Cashier logout clicked');
-              // Example: End shift and logout
+              handleLogout()
             }}
           >
             <LogOut className="w-5 h-5" />
