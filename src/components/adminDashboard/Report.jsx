@@ -15,7 +15,9 @@ import {
   BarChart3,
   PieChart,
   Users,
-  Package
+  Package,
+  Calculator,
+  Clock
 } from 'lucide-react';
 import TopNav from '../TopNav';
 
@@ -25,6 +27,7 @@ const Report = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [period, setPeriod] = useState('daily');
+  const [currentTime, setCurrentTime] = useState('');
 
   const API_BASE_URL = 'https://sales-system-production.up.railway.app/api';
 
@@ -37,6 +40,42 @@ const Report = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount);
+  };
+
+  // Get Lagos time (WAT +1 GMT)
+  const getLagosTime = () => {
+    const now = new Date();
+    // Convert to Lagos time (UTC+1)
+    const lagosTime = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+    return lagosTime;
+  };
+
+  // Format date in Lagos time
+  const formatLagosDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-NG', { 
+        timeZone: 'Africa/Lagos',
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (err) {
+      return dateString;
+    }
+  };
+
+  // Update current time
+  const updateCurrentTime = () => {
+    const lagosTime = getLagosTime();
+    const hours = lagosTime.getHours().toString().padStart(2, '0');
+    const minutes = lagosTime.getMinutes().toString().padStart(2, '0');
+    const seconds = lagosTime.getSeconds().toString().padStart(2, '0');
+    setCurrentTime(`${hours}:${minutes}:${seconds} WAT`);
   };
 
   // Fetch all data
@@ -89,8 +128,6 @@ const Report = () => {
         posServicesData = posData.posServices || [];
       }
 
-      console.log('POS Services Data:', posServicesData);
-
       // Process all data
       const processedData = processReportData(
         analyticsData.analytics || analyticsData,
@@ -114,8 +151,8 @@ const Report = () => {
   const filterByPeriod = (transactions, period) => {
     if (!transactions || transactions.length === 0) return [];
     
-    const now = new Date();
-    const periodStart = new Date();
+    const now = getLagosTime();
+    const periodStart = getLagosTime();
     
     switch (period.toLowerCase()) {
       case 'daily':
@@ -145,7 +182,7 @@ const Report = () => {
     // Calculate totals for each payment method
     const cashTotal = salesByMethod.find(s => s._id === 'Cash')?.totalAmount || 0;
     const posOpayTotal = salesByMethod.find(s => s._id === 'Pos-Opay')?.totalAmount || 0;
-    const posParallexTotal = salesByMethod.find(s => s._id === 'Pos-Paralex')?.totalAmount || 0;
+    const posParallexTotal = salesByMethod.find(s => s._id === 'Pos-Parallex')?.totalAmount || 0;
     const transferOpayTotal = salesByMethod.find(s => s._id === 'Transfer-Opay')?.totalAmount || 0;
     const transferParallexTotal = salesByMethod.find(s => s._id === 'Transfer-Parallex')?.totalAmount || 0;
 
@@ -190,11 +227,57 @@ const Report = () => {
 
     const posTotals = calculatePosTotals(filteredPosServices);
     
-    console.log('Calculated POS Totals:', posTotals);
-    console.log('Filtered POS Services count:', filteredPosServices.length);
-
     // Calculate adjusted cash (cash from sales - withdrawals + deposits + transfers)
     const adjustedCash = cashTotal - posTotals.withdrawal + posTotals.deposit + posTotals.transfer;
+
+    // Calculate Parallex and Opay balances
+    const calculateAccountBalance = (transactions) => {
+      let depositAmount = 0;
+      let withdrawalAmount = 0;
+      let transferAmount = 0;
+      
+      transactions.forEach(transaction => {
+        const amount = transaction.transactionAmount || 0;
+        
+        switch (transaction.transactionType) {
+          case 'Deposit':
+            depositAmount += amount;
+            break;
+          case 'Withdrawal':
+            withdrawalAmount += amount;
+            break;
+          case 'Transfer':
+            transferAmount += amount;
+            break;
+        }
+      });
+      
+      return {
+        depositAmount,
+        withdrawalAmount,
+        transferAmount
+      };
+    };
+    
+    const parallexTransactions = filteredPosServices.filter(t => 
+      t.transactionMethod === 'Pos-Parallex' || t.transactionMethod === 'Transfer-Parallex'
+    );
+    
+    const opayTransactions = filteredPosServices.filter(t => 
+      t.transactionMethod === 'Pos-Opay' || t.transactionMethod === 'Transfer-Opay'
+    );
+    
+    const parallexPosData = calculateAccountBalance(parallexTransactions);
+    const opayPosData = calculateAccountBalance(opayTransactions);
+    
+    const parallexSales = posParallexTotal + transferParallexTotal;
+    const opaySales = posOpayTotal + transferOpayTotal;
+    
+    const parallexBalance = parallexSales + parallexPosData.withdrawalAmount 
+      - parallexPosData.depositAmount - parallexPosData.transferAmount;
+    
+    const opayBalance = opaySales + opayPosData.withdrawalAmount 
+      - opayPosData.depositAmount - opayPosData.transferAmount;
 
     return {
       // Total Sales Breakdown
@@ -216,6 +299,14 @@ const Report = () => {
         totalTransactions: posTotals.totalTransactions,
         rawData: filteredPosServices
       },
+      // Account Balances
+      accountBalances: {
+        parallexBalance,
+        opayBalance,
+        totalDigitalBalance: parallexBalance + opayBalance,
+        parallexSales,
+        opaySales
+      },
       // Cash Analysis
       cashAnalysis: {
         initialCash: cashTotal,
@@ -230,18 +321,15 @@ const Report = () => {
         totalTransactions: analytics?.totalSales?.totalTransactions || 0,
         totalItemsSold: analytics?.totalSales?.totalItemsSold || 0,
         averageTransactionValue: analytics?.totalSales?.totalRevenue / (analytics?.totalSales?.totalTransactions || 1) || 0
-      },
-      // Debug info
-      debug: {
-        posServicesCount: posServices.length,
-        filteredPosServicesCount: filteredPosServices.length,
-        posServicesSample: filteredPosServices.slice(0, 3)
       }
     };
   };
 
   useEffect(() => {
     fetchReportData();
+    updateCurrentTime();
+    const timerId = setInterval(updateCurrentTime, 1000);
+    return () => clearInterval(timerId);
   }, [period]);
 
   const handleRefresh = () => {
@@ -254,7 +342,7 @@ const Report = () => {
     // Create CSV content
     let csv = 'SALES REPORT\n\n';
     csv += `Period: ${period.charAt(0).toUpperCase() + period.slice(1)}\n`;
-    csv += `Generated: ${new Date().toLocaleString()}\n\n`;
+    csv += `Generated: ${new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })}\n\n`;
     
     csv += 'TOTAL SALES BREAKDOWN\n';
     csv += 'Payment Method,Amount\n';
@@ -271,6 +359,11 @@ const Report = () => {
     csv += `Deposit,${reportData.posTransactions.deposit},${getServiceChargeByType('Deposit')},${getPosTransactionCount('Deposit')}\n`;
     csv += `Transfer,${reportData.posTransactions.transfer},${getServiceChargeByType('Transfer')},${getPosTransactionCount('Transfer')}\n`;
     csv += `Total POS,${reportData.posTransactions.totalPosRevenue},${reportData.posTransactions.serviceCharges},${reportData.posTransactions.totalTransactions}\n\n`;
+    
+    csv += 'ACCOUNT BALANCES\n';
+    csv += `Parallex Account Balance,${reportData.accountBalances.parallexBalance}\n`;
+    csv += `Opay Account Balance,${reportData.accountBalances.opayBalance}\n`;
+    csv += `Total Digital Balance,${reportData.accountBalances.totalDigitalBalance}\n\n`;
     
     csv += 'CASH ANALYSIS\n';
     csv += `Initial Cash from Sales,${reportData.cashAnalysis.initialCash}\n`;
@@ -311,19 +404,19 @@ const Report = () => {
   };
 
   const getDateRangeText = (period) => {
-    const now = new Date();
-    const start = new Date();
+    const now = getLagosTime();
+    const start = getLagosTime();
     
     switch (period.toLowerCase()) {
       case 'daily':
         start.setHours(0, 0, 0, 0);
-        return `${start.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+        return `${start.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos' })} - ${now.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos' })}`;
       case 'weekly':
         start.setDate(now.getDate() - 7);
-        return `${start.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+        return `${start.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos' })} - ${now.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos' })}`;
       case 'monthly':
         start.setMonth(now.getMonth() - 1);
-        return `${start.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+        return `${start.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos' })} - ${now.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos' })}`;
       default:
         return 'All time';
     }
@@ -367,7 +460,13 @@ const Report = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Sales Analytics Report</h1>
-              <p className="text-gray-600 mt-2">{getDateRangeText(period)}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <p className="text-gray-600">{getDateRangeText(period)}</p>
+                <span className="mx-2 text-gray-400">•</span>
+                <Clock className="w-4 h-4 text-gray-500" />
+                <p className="text-gray-600">{currentTime}</p>
+              </div>
             </div>
             
             <div className="flex items-center gap-3">
@@ -409,13 +508,11 @@ const Report = () => {
           </div>
         </div>
 
-        
-
-        {/* Summary Cards */}
+        {/* Summary Cards - UPDATED */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-blue-100 text-sm">Total Revenue</p>
+              <p className="text-blue-100 text-sm">Total Product Sales</p>
               <DollarSign className="w-8 h-8 text-blue-200" />
             </div>
             <h3 className="text-3xl font-bold">{formatCurrency(reportData?.totalSales.grandTotal || 0)}</h3>
@@ -431,22 +528,28 @@ const Report = () => {
             <p className="text-green-100 text-sm mt-2">Cash in hand</p>
           </div>
 
+          {/* CHANGED: From "POS Services" to "Parallex Balance" */}
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-purple-100 text-sm">POS Services</p>
+              <p className="text-purple-100 text-sm">Parallex Balance</p>
               <CreditCard className="w-8 h-8 text-purple-200" />
             </div>
-            <h3 className="text-3xl font-bold">{formatCurrency(reportData?.posTransactions.totalPosRevenue || 0)}</h3>
-            <p className="text-purple-100 text-sm mt-2">{reportData?.posTransactions.totalTransactions || 0} transactions</p>
+            <h3 className="text-3xl font-bold">{formatCurrency(reportData?.accountBalances?.parallexBalance || 0)}</h3>
+            <p className="text-purple-100 text-sm mt-2">
+              Sales: {formatCurrency(reportData?.accountBalances?.parallexSales || 0)}
+            </p>
           </div>
 
+          {/* CHANGED: From "Items Sold" to "Opay Balance" */}
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-orange-100 text-sm">Items Sold</p>
-              <Package className="w-8 h-8 text-orange-200" />
+              <p className="text-orange-100 text-sm">Opay Balance</p>
+              <CreditCard className="w-8 h-8 text-orange-200" />
             </div>
-            <h3 className="text-3xl font-bold">{reportData?.metrics.totalItemsSold || 0}</h3>
-            <p className="text-orange-100 text-sm mt-2">Avg: {formatCurrency(reportData?.metrics.averageTransactionValue || 0)}/sale</p>
+            <h3 className="text-3xl font-bold">{formatCurrency(reportData?.accountBalances?.opayBalance || 0)}</h3>
+            <p className="text-orange-100 text-sm mt-2">
+              Sales: {formatCurrency(reportData?.accountBalances?.opaySales || 0)}
+            </p>
           </div>
         </div>
 
@@ -499,79 +602,207 @@ const Report = () => {
             </div>
           </div>
 
-          {/* POS Services Summary */}
+          {/* POS Services Summary - UPDATED */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-800">POS Services</h2>
-              <PieChart className="w-6 h-6 text-gray-400" />
+              <h2 className="text-xl font-bold text-gray-800">Account Overview</h2>
+              <Calculator className="w-6 h-6 text-gray-400" />
             </div>
 
             <div className="space-y-4">
-              {/* Withdrawal */}
-              <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg">
+              {/* Parallex Balance */}
+              <div className="flex items-center justify-between p-4 bg-purple-50 border border-purple-200 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                    <ArrowDownRight className="w-5 h-5 text-red-600" />
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Withdrawal</p>
-                    <p className="text-xs text-gray-500">Reduces cash</p>
+                    <p className="text-sm font-medium text-gray-800">Parallex Balance</p>
+                    <p className="text-xs text-gray-500">Expected in account</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-red-600">{formatCurrency(reportData?.posTransactions.withdrawal || 0)}</p>
-                  <p className="text-xs text-red-500">Charges: {formatCurrency(getServiceChargeByType('Withdrawal'))}</p>
+                  <p className="text-lg font-bold text-purple-600">{formatCurrency(reportData?.accountBalances?.parallexBalance || 0)}</p>
+                  <p className="text-xs text-purple-500">
+                    Sales: {formatCurrency(reportData?.accountBalances?.parallexSales || 0)}
+                  </p>
                 </div>
               </div>
 
-              {/* Deposit */}
-              <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+              {/* Opay Balance */}
+              <div className="flex items-center justify-between p-4 bg-orange-50 border border-orange-200 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <ArrowUpRight className="w-5 h-5 text-green-600" />
+                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-orange-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Deposit</p>
-                    <p className="text-xs text-gray-500">Adds cash</p>
+                    <p className="text-sm font-medium text-gray-800">Opay Balance</p>
+                    <p className="text-xs text-gray-500">Expected in account</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-green-600">{formatCurrency(reportData?.posTransactions.deposit || 0)}</p>
-                  <p className="text-xs text-green-500">Charges: {formatCurrency(getServiceChargeByType('Deposit'))}</p>
+                  <p className="text-lg font-bold text-orange-600">{formatCurrency(reportData?.accountBalances?.opayBalance || 0)}</p>
+                  <p className="text-xs text-orange-500">
+                    Sales: {formatCurrency(reportData?.accountBalances?.opaySales || 0)}
+                  </p>
                 </div>
               </div>
 
-              {/* Transfer */}
-              <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <ArrowUpRight className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Transfer</p>
-                    <p className="text-xs text-gray-500">Adds cash</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-blue-600">{formatCurrency(reportData?.posTransactions.transfer || 0)}</p>
-                  <p className="text-xs text-blue-500">Charges: {formatCurrency(getServiceChargeByType('Transfer'))}</p>
-                </div>
-              </div>
-
-              {/* Total POS */}
-              <div className="border-2 border-purple-300 rounded-lg p-4 bg-purple-50">
+              {/* Total Digital Balance */}
+              <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-sm font-semibold text-purple-800">Total POS Services</p>
-                    <p className="text-xs text-purple-600">All transactions</p>
+                    <p className="text-sm font-semibold text-blue-800">Total Digital Balance</p>
+                    <p className="text-xs text-blue-600">Parallex + Opay</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xl font-bold text-purple-900">{formatCurrency(reportData?.posTransactions.totalPosRevenue || 0)}</p>
-                    <p className="text-xs text-purple-700">Total Charges: {formatCurrency(reportData?.posTransactions.serviceCharges || 0)}</p>
+                    <p className="text-xl font-bold text-blue-900">{formatCurrency(reportData?.accountBalances?.totalDigitalBalance || 0)}</p>
+                    <p className="text-xs text-blue-700">
+                      {formatCurrency((reportData?.accountBalances?.parallexSales || 0) + (reportData?.accountBalances?.opaySales || 0))} total sales
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* POS Methods Table */}
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-800">POS Methods - Transaction Type Breakdown</h2>
+            <CreditCard className="w-6 h-6 text-gray-400" />
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Method</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Deposit</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Withdrawal</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Transfer</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { method: 'Pos-Parallex', label: 'POS (Parallex)', color: 'blue' },
+                  { method: 'Pos-Opay', label: 'POS (Opay)', color: 'green' },
+                  { method: 'Transfer-Parallex', label: 'Transfer (Parallex)', color: 'purple' },
+                  { method: 'Transfer-Opay', label: 'Transfer (Opay)', color: 'orange' }
+                ].map((item) => {
+                  const methodTransactions = reportData?.posTransactions?.rawData
+                    ?.filter(record => record.transactionMethod === item.method) || [];
+                  
+                  const depositAmount = methodTransactions
+                    .filter(t => t.transactionType === 'Deposit')
+                    .reduce((sum, t) => sum + (t.transactionAmount || 0), 0);
+                  
+                  const withdrawalAmount = methodTransactions
+                    .filter(t => t.transactionType === 'Withdrawal')
+                    .reduce((sum, t) => sum + (t.transactionAmount || 0), 0);
+                  
+                  const transferAmount = methodTransactions
+                    .filter(t => t.transactionType === 'Transfer')
+                    .reduce((sum, t) => sum + (t.transactionAmount || 0), 0);
+                  
+                  const depositCount = methodTransactions.filter(t => t.transactionType === 'Deposit').length;
+                  const withdrawalCount = methodTransactions.filter(t => t.transactionType === 'Withdrawal').length;
+                  const transferCount = methodTransactions.filter(t => t.transactionType === 'Transfer').length;
+                  
+                  const methodTotal = depositAmount + withdrawalAmount + transferAmount;
+                  const totalCount = depositCount + withdrawalCount + transferCount;
+
+                  return (
+                    <tr key={item.method} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full bg-${item.color}-500`}></div>
+                          <span className="font-medium text-gray-800">{item.label}</span>
+                          <span className="text-xs text-gray-500">({totalCount})</span>
+                        </div>
+                      </td>
+                      
+                      {/* Deposit Column */}
+                      <td className="py-3 px-4">
+                        {depositCount > 0 ? (
+                          <div className="space-y-1">
+                            <p className="font-medium text-green-700">{formatCurrency(depositAmount)}</p>
+                            <p className="text-xs text-gray-500">{depositCount} transaction{depositCount !== 1 ? 's' : ''}</p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                      
+                      {/* Withdrawal Column */}
+                      <td className="py-3 px-4">
+                        {withdrawalCount > 0 ? (
+                          <div className="space-y-1">
+                            <p className="font-medium text-red-700">{formatCurrency(withdrawalAmount)}</p>
+                            <p className="text-xs text-gray-500">{withdrawalCount} transaction{withdrawalCount !== 1 ? 's' : ''}</p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                      
+                      {/* Transfer Column */}
+                      <td className="py-3 px-4">
+                        {transferCount > 0 ? (
+                          <div className="space-y-1">
+                            <p className="font-medium text-blue-700">{formatCurrency(transferAmount)}</p>
+                            <p className="text-xs text-gray-500">{transferCount} transaction{transferCount !== 1 ? 's' : ''}</p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                      
+                      {/* Total Column */}
+                      <td className="py-3 px-4">
+                        <div className="space-y-1">
+                          <p className="font-bold text-gray-800">{formatCurrency(methodTotal)}</p>
+                          <p className="text-xs text-gray-500">
+                            {totalCount} transaction{totalCount !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                
+                {/* Totals Row */}
+                <tr className="bg-gray-50 font-bold">
+                  <td className="py-3 px-4 text-gray-800">TOTAL</td>
+                  <td className="py-3 px-4 text-green-700">
+                    {formatCurrency(
+                      reportData?.posTransactions?.rawData
+                        ?.filter(t => t.transactionType === 'Deposit')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-red-700">
+                    {formatCurrency(
+                      reportData?.posTransactions?.rawData
+                        ?.filter(t => t.transactionType === 'Withdrawal')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-blue-700">
+                    {formatCurrency(
+                      reportData?.posTransactions?.rawData
+                        ?.filter(t => t.transactionType === 'Transfer')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-gray-800">
+                    {formatCurrency(reportData?.posTransactions?.totalPosRevenue || 0)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -632,9 +863,352 @@ const Report = () => {
           </div>
         </div>
 
+        {/* Expected Account Balances - Updated with cleaner design */}
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-800">Expected Account Balances</h2>
+            <div className="flex items-center gap-2">
+              <Calculator className="w-6 h-6 text-gray-400" />
+              <span className="text-sm text-gray-500">Based on POS service transactions</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Parallex Account */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <CreditCard className="w-7 h-7 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-blue-800">Parallex Account</h3>
+                    <p className="text-sm text-blue-600">POS & Transfer Parallex</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Expected Balance</p>
+                  <p className={`text-3xl font-bold ${reportData?.accountBalances?.parallexBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(reportData?.accountBalances?.parallexBalance || 0)}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-white border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-gray-800 mb-3">Calculation Breakdown</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Product Sales:</span>
+                      <span className="font-medium text-blue-700">+ {formatCurrency(reportData?.accountBalances?.parallexSales || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Withdrawals:</span>
+                      <span className="font-medium text-green-600">+ {formatCurrency(reportData?.posTransactions?.rawData
+                        ?.filter(t => (t.transactionMethod === 'Pos-Parallex' || t.transactionMethod === 'Transfer-Parallex') && t.transactionType === 'Withdrawal')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Deposits:</span>
+                      <span className="font-medium text-red-600">- {formatCurrency(reportData?.posTransactions?.rawData
+                        ?.filter(t => (t.transactionMethod === 'Pos-Parallex' || t.transactionMethod === 'Transfer-Parallex') && t.transactionType === 'Deposit')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Transfers:</span>
+                      <span className="font-medium text-red-600">- {formatCurrency(reportData?.posTransactions?.rawData
+                        ?.filter(t => (t.transactionMethod === 'Pos-Parallex' || t.transactionMethod === 'Transfer-Parallex') && t.transactionType === 'Transfer')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0)}</span>
+                    </div>
+                    <div className="h-px bg-blue-200 my-2"></div>
+                    <div className="flex justify-between items-center font-semibold">
+                      <span className="text-blue-800">Expected Balance:</span>
+                      <span className={`text-lg ${reportData?.accountBalances?.parallexBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(reportData?.accountBalances?.parallexBalance || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Opay Account */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                    <CreditCard className="w-7 h-7 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-green-800">Opay Account</h3>
+                    <p className="text-sm text-green-600">POS & Transfer Opay</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Expected Balance</p>
+                  <p className={`text-3xl font-bold ${reportData?.accountBalances?.opayBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(reportData?.accountBalances?.opayBalance || 0)}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-white border border-green-200 rounded-lg p-4">
+                  <h4 className="font-medium text-gray-800 mb-3">Calculation Breakdown</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Product Sales:</span>
+                      <span className="font-medium text-green-700">+ {formatCurrency(reportData?.accountBalances?.opaySales || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Withdrawals:</span>
+                      <span className="font-medium text-green-600">+ {formatCurrency(reportData?.posTransactions?.rawData
+                        ?.filter(t => (t.transactionMethod === 'Pos-Opay' || t.transactionMethod === 'Transfer-Opay') && t.transactionType === 'Withdrawal')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Deposits:</span>
+                      <span className="font-medium text-red-600">- {formatCurrency(reportData?.posTransactions?.rawData
+                        ?.filter(t => (t.transactionMethod === 'Pos-Opay' || t.transactionMethod === 'Transfer-Opay') && t.transactionType === 'Deposit')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Transfers:</span>
+                      <span className="font-medium text-red-600">- {formatCurrency(reportData?.posTransactions?.rawData
+                        ?.filter(t => (t.transactionMethod === 'Pos-Opay' || t.transactionMethod === 'Transfer-Opay') && t.transactionType === 'Transfer')
+                        .reduce((sum, t) => sum + (t.transactionAmount || 0), 0) || 0)}</span>
+                    </div>
+                    <div className="h-px bg-green-200 my-2"></div>
+                    <div className="flex justify-between items-center font-semibold">
+                      <span className="text-green-800">Expected Balance:</span>
+                      <span className={`text-lg ${reportData?.accountBalances?.opayBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(reportData?.accountBalances?.opayBalance || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+              
+          {/* Combined Summary */}
+          <div className="mt-8 pt-8 border-t border-gray-300">
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-300 rounded-xl p-6">
+              <h4 className="text-lg font-bold text-gray-800 mb-6 text-center">Digital Accounts Summary</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center p-5 bg-white border-2 border-blue-300 rounded-lg shadow-sm">
+                  <p className="text-sm text-gray-600 mb-2">Total Digital Balance</p>
+                  <p className={`text-2xl font-bold ${reportData?.accountBalances?.totalDigitalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(reportData?.accountBalances?.totalDigitalBalance || 0)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">Parallex + Opay combined</p>
+                </div>
+                <div className="text-center p-5 bg-white border-2 border-purple-300 rounded-lg shadow-sm">
+                  <p className="text-sm text-gray-600 mb-2">Total Digital Sales</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {formatCurrency((reportData?.accountBalances?.parallexSales || 0) + (reportData?.accountBalances?.opaySales || 0))}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">All non-cash methods</p>
+                </div>
+                <div className="text-center p-5 bg-white border-2 border-green-300 rounded-lg shadow-sm">
+                  <p className="text-sm text-gray-600 mb-2">POS Service Transactions</p>
+                  <p className="text-2xl font-bold text-purple-600">{reportData?.posTransactions?.totalTransactions || 0}</p>
+                  <p className="text-xs text-gray-500 mt-2">Total adjustment transactions</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+          {/* Alternative: POS Methods with Service Charges in Card View */}
+                <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-gray-800">POS Services - Detailed Breakdown</h2>
+                    <CreditCard className="w-6 h-6 text-gray-400" />
+                  </div>
+
+                  {/* Service Charges Summary Card */}
+                  <div className="mb-6 p-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg">
+                    <div className="flex items-center justify-between text-white">
+                      <div>
+                        <h3 className="text-xl font-bold mb-1">Total Service Charges</h3>
+                        <p className="text-purple-100">2% on deposits, 1% on withdrawals, transfers may vary</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-3xl font-bold">{formatCurrency(reportData?.posTransactions?.serviceCharges || 0)}</p>
+                        <p className="text-purple-100 text-sm mt-1">
+                          {reportData?.posTransactions?.totalTransactions || 0} transactions
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                      <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                        <p className="text-white/90 text-sm">Deposit Charges</p>
+                        <p className="text-white text-lg font-bold">
+                          {formatCurrency(
+                            reportData?.posTransactions?.rawData
+                              ?.filter(t => t.transactionType === 'Deposit')
+                              .reduce((sum, t) => sum + (t.serviceCharge || 0), 0) || 0
+                          )}
+                        </p>
+                        <p className="text-white/80 text-xs">2% of deposit amount</p>
+                      </div>
+                      <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                        <p className="text-white/90 text-sm">Withdrawal Charges</p>
+                        <p className="text-white text-lg font-bold">
+                          {formatCurrency(
+                            reportData?.posTransactions?.rawData
+                              ?.filter(t => t.transactionType === 'Withdrawal')
+                              .reduce((sum, t) => sum + (t.serviceCharge || 0), 0) || 0
+                          )}
+                        </p>
+                        <p className="text-white/80 text-xs">1% of withdrawal amount</p>
+                      </div>
+                      <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                        <p className="text-white/90 text-sm">Transfer Charges</p>
+                        <p className="text-white text-lg font-bold">
+                          {formatCurrency(
+                            reportData?.posTransactions?.rawData
+                              ?.filter(t => t.transactionType === 'Transfer')
+                              .reduce((sum, t) => sum + (t.serviceCharge || 0), 0) || 0
+                          )}
+                        </p>
+                        <p className="text-white/80 text-xs">Varies per transaction</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Method</th>
+                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Transactions</th>
+                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Total Amount</th>
+                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Service Charges</th>
+                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Net Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { method: 'Pos-Parallex', label: 'POS (Parallex)', color: 'blue' },
+                          { method: 'Pos-Opay', label: 'POS (Opay)', color: 'green' },
+                          { method: 'Transfer-Parallex', label: 'Transfer (Parallex)', color: 'purple' },
+                          { method: 'Transfer-Opay', label: 'Transfer (Opay)', color: 'orange' }
+                        ].map((item) => {
+                          const methodTransactions = reportData?.posTransactions?.rawData
+                            ?.filter(record => record.transactionMethod === item.method) || [];
+                          
+                          const methodTotal = methodTransactions
+                            .reduce((sum, t) => sum + (t.transactionAmount || 0), 0);
+                          
+                          const methodServiceCharges = methodTransactions
+                            .reduce((sum, t) => sum + (t.serviceCharge || 0), 0);
+                          
+                          const netAmount = methodTotal - methodServiceCharges;
+                          const transactionCount = methodTransactions.length;
+
+                          // Calculate breakdown by type
+                          const depositTransactions = methodTransactions.filter(t => t.transactionType === 'Deposit');
+                          const withdrawalTransactions = methodTransactions.filter(t => t.transactionType === 'Withdrawal');
+                          const transferTransactions = methodTransactions.filter(t => t.transactionType === 'Transfer');
+
+                          return (
+                            <tr key={item.method} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-3 h-3 rounded-full bg-${item.color}-500`}></div>
+                                  <span className="font-medium text-gray-800">{item.label}</span>
+                                </div>
+                                <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                                  {depositTransactions.length > 0 && (
+                                    <span className="text-green-600">{depositTransactions.length} Deposit</span>
+                                  )}
+                                  {withdrawalTransactions.length > 0 && (
+                                    <span className="text-red-600">{withdrawalTransactions.length} Withdrawal</span>
+                                  )}
+                                  {transferTransactions.length > 0 && (
+                                    <span className="text-blue-600">{transferTransactions.length} Transfer</span>
+                                  )}
+                                </div>
+                              </td>
+                              
+                              <td className="py-3 px-4">
+                                <div className="space-y-1">
+                                  <p className="font-medium text-gray-800">{transactionCount}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {depositTransactions.length + withdrawalTransactions.length + transferTransactions.length} total
+                                  </p>
+                                </div>
+                              </td>
+                              
+                              <td className="py-3 px-4">
+                                <div className="space-y-1">
+                                  <p className="font-bold text-gray-800">{formatCurrency(methodTotal)}</p>
+                                  <p className="text-xs text-gray-500">
+                                    Avg: {formatCurrency(transactionCount > 0 ? methodTotal / transactionCount : 0)}
+                                  </p>
+                                </div>
+                              </td>
+                              
+                              <td className="py-3 px-4">
+                                <div className="space-y-1">
+                                  <p className="font-medium text-purple-700">{formatCurrency(methodServiceCharges)}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {methodServiceCharges > 0 ? `${((methodServiceCharges / methodTotal) * 100).toFixed(2)}% of total` : '-'}
+                                  </p>
+                                </div>
+                              </td>
+                              
+                              <td className="py-3 px-4">
+                                <div className="space-y-1">
+                                  <p className="font-bold text-green-700">{formatCurrency(netAmount)}</p>
+                                  <p className="text-xs text-gray-500">
+                                    After service charges
+                                  </p>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        
+                        {/* Totals Row */}
+                        <tr className="bg-gray-50 font-bold">
+                          <td className="py-3 px-4 text-gray-800">TOTAL</td>
+                          <td className="py-3 px-4 text-gray-800">
+                            {reportData?.posTransactions?.totalTransactions || 0}
+                          </td>
+                          <td className="py-3 px-4 text-gray-800">
+                            {formatCurrency(reportData?.posTransactions?.totalPosRevenue || 0)}
+                          </td>
+                          <td className="py-3 px-4 text-purple-800">
+                            {formatCurrency(reportData?.posTransactions?.serviceCharges || 0)}
+                          </td>
+                          <td className="py-3 px-4 text-green-800">
+                            {formatCurrency(
+                              (reportData?.posTransactions?.totalPosRevenue || 0) - 
+                              (reportData?.posTransactions?.serviceCharges || 0)
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+        </div>
+
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Report generated on {new Date().toLocaleString('en-NG')}</p>
+          <p>Report generated on {getLagosTime().toLocaleString('en-NG', { 
+            timeZone: 'Africa/Lagos',
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          })} WAT</p>
           <p className="mt-1">Period: {period.charAt(0).toUpperCase() + period.slice(1)} • {getDateRangeText(period)}</p>
         </div>
       </div>
