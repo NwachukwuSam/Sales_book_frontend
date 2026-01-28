@@ -1,5 +1,5 @@
 import logo from "../assets/logo.png";
-import logoI from "../assets/logoTwo.png";
+import logoI from "../assets/logoTwo.jpg";
 import { motion } from "framer-motion";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";

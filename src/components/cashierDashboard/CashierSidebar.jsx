@@ -115,8 +115,8 @@ const CashierSidebar = ({ activeSection, setActiveSection }) => {
         {/* Logo */}
         <div className="p-6 border-b border-blue-400">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-             <img src={logo} alt="logo" />
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center">
+             <img src={logo} alt="logo" className='rounded-full' />
             </div>
             <h1 className="text-white text-2xl font-bold">PASORIDO</h1>
           </div>
