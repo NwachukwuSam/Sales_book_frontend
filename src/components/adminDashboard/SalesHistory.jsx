@@ -664,7 +664,7 @@ const SalesHistory = () => {
                                   {item.name}
                                 </span>
                                 <span className="ml-2 text-xs text-gray-500">
-                                  x{item.quantity}
+                                  {item.quantity} Units
                                 </span>
                               </div>
                             )) || 'No items'}
