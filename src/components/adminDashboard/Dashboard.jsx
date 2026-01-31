@@ -17,7 +17,7 @@ import TopNav from '../TopNav';
 import axios from 'axios';
 
 // Set base URL for all API calls
-const API_BASE_URL = 'https://sales-system-production.up.railway.app/api';
+const API_BASE_URL = 'https://sales-book.onrender.com/api';
 
 const Dashboard = () => {
   const [period, setPeriod] = useState('daily');

@@ -16,7 +16,7 @@ import {
 import TopNav from './../TopNav'
 import axios from 'axios';
 
-const API_BASE_URL = 'https://sales-system-production.up.railway.app/api';
+const API_BASE_URL = 'https://sales-book.onrender.com/api';
 
 const POSHistory = () => {
   const [searchQuery, setSearchQuery] = useState('');

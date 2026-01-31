@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
@@ -20,8 +18,8 @@ import {
 import TopNav from '../components/TopNav';
 import axios from 'axios';
 
-// Set base URL for all API calls
-const API_BASE_URL = 'https://sales-system-production.up.railway.app/api';
+
+const API_BASE_URL = 'https://sales-book.onrender.com/api';
 
 const AdminDashboard = () => {
   const [period, setPeriod] = useState('daily');
@@ -30,9 +28,9 @@ const AdminDashboard = () => {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [paymentAnalysis, setPaymentAnalysis] = useState(null);
-  const [salesTrends, setSalesTrends] = useState([]); // Initialize as empty array
+  const [salesTrends, setSalesTrends] = useState([]); 
 
-  // Format currency to Naira
+ 
   const formatCurrency = (amount) => {
     if (amount === null || amount === undefined || isNaN(amount)) return '₦0.00';
     
@@ -225,7 +223,7 @@ const AdminDashboard = () => {
       const day = item.day || item._id || `Day ${index + 1}`;
       
       return {
-        day: String(day).substring(0, 3), // Shorten to 3 characters
+        day: String(day).substring(0, 3),
         value: value
       };
     });
@@ -297,7 +295,7 @@ const AdminDashboard = () => {
   ];
 
   const paymentMethods = getPaymentMethodBreakdown();
-  const salesData = prepareSalesTrends(); // This will now always return an array
+  const salesData = prepareSalesTrends();
   const maxSalesValue = Math.max(...salesData.map(d => d.value));
 
   // Loading state

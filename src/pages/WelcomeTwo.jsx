@@ -9,7 +9,7 @@ const WelcomeTwo = () => {
     const navigate = useNavigate();
 
   useEffect(() => {
-    const timer = setTimeout(() => navigate("/login"), 15000);
+    const timer = setTimeout(() => navigate("/login"), 3000);
     return () => clearTimeout(timer);
   }, [navigate]);
   return (

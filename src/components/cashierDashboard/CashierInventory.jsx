@@ -52,7 +52,7 @@ const CashierInventory = () => {
           throw new Error('No authentication token found. Please log in.');
         }
         
-        const response = await fetch('https://sales-system-production.up.railway.app/api/inventory', {
+        const response = await fetch('https://sales-book.onrender.com/api/inventory', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

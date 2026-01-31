@@ -660,7 +660,7 @@ const Users = () => {
         throw new Error('No authentication token found. Please log in.');
       }
 
-      const endpoint = 'https://sales-system-production.up.railway.app/api/auth/get-all-cashiers';
+      const endpoint = 'https://sales-book.onrender.com/api/auth/get-all-cashiers';
       const response = await fetch(endpoint, {
         method: 'GET',
         headers: {
@@ -749,7 +749,7 @@ const Users = () => {
       };
 
       const response = await fetch(
-        'https://sales-system-production.up.railway.app/api/auth/register-cashier',
+        'https://sales-book.onrender.com/api/auth/register-cashier',
         {
           method: 'POST',
           headers: {
@@ -800,7 +800,7 @@ const Users = () => {
 
       const deletePromises = selectedUsers.map(async (userId) => {
         const response = await fetch(
-          `https://sales-system-production.up.railway.app/api/auth/${userId}/delete-cashier`,
+          `https://sales-book.onrender.com/api/auth/${userId}/delete-cashier`,
           {
             method: 'DELETE',
             headers: {

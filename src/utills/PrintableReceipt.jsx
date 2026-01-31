@@ -18,7 +18,7 @@ const PrintableReceipt = ({ data }) => {
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-1">Pasorido Supermarket</h1>
         <p className="text-gray-600 text-sm">Main Branch, Azuba, Lafia</p>
-        <p className="text-gray-600 text-sm">Tel: 01-2345678 | Email: info@pasorido.com</p>
+        <p className="text-gray-600 text-sm">Tel: 0806 614 6516 | Email: info@pasorido.com</p>
       </div>
       
       <div className="border-t border-b border-gray-300 py-3 mb-4">
@@ -127,9 +127,9 @@ const PrintableReceipt = ({ data }) => {
         <p className="text-gray-600 text-sm mb-2">Thank you for your business!</p>
         <p className="text-gray-500 text-xs">This receipt is computer generated and does not require a signature</p>
         <div className="mt-4 flex justify-center space-x-4 text-xs text-gray-500">
-          <span>📍 Visit: www.springcore.africa</span>
-          <span>📧 Email: support@springcore.africa</span>
-          <span>📱 Tel: 01-2345678</span>
+          <span>📍 Visit: Pasorido Integrated Services</span>
+          <span>📧 Email: support@pasorido.com</span>
+          <span>📱 Tel: 0806 614 6516</span>
         </div>
         <div className="mt-4 text-xs text-gray-400">
           Receipt ID: {data.transactionId} | Printed at: {new Date().toLocaleString()}

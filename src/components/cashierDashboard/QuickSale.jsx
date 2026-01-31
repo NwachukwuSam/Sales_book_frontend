@@ -26,7 +26,7 @@ import {
 import CashierTopNav from '../cashierDashboard/CashierTopNav.jsx';
 import axios from 'axios';
 
-const API_BASE_URL = 'https://sales-system-production.up.railway.app/api';
+const API_BASE_URL = 'https://sales-book.onrender.com/api';
 
 // Printable Receipt Component
 const PrintableReceipt = ({ data }) => {
@@ -45,9 +45,9 @@ const PrintableReceipt = ({ data }) => {
     <div className="printable-receipt bg-white p-8 max-w-md mx-auto">
       {/* Receipt Header */}
       <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">Springcore Africa POS</h1>
-        <p className="text-gray-600 text-sm">Main Branch, Lagos</p>
-        <p className="text-gray-600 text-sm">Tel: 01-2345678 | Email: info@springcore.africa</p>
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">Pasorido Integrated Services</h1>
+        <p className="text-gray-600 text-sm">Main Branch, Azuba Lafia</p>
+        <p className="text-gray-600 text-sm">Tel: 0806 6146 516 | Email: info@pasorido.com</p>
       </div>
       
       <div className="border-t border-b border-gray-300 py-3 mb-4">
@@ -156,9 +156,9 @@ const PrintableReceipt = ({ data }) => {
         <p className="text-gray-600 text-sm mb-2">Thank you for your business!</p>
         <p className="text-gray-500 text-xs">This receipt is computer generated and does not require a signature</p>
         <div className="mt-4 flex justify-center space-x-4 text-xs text-gray-500">
-          <span>📍 Visit: www.springcore.africa</span>
-          <span>📧 Email: support@springcore.africa</span>
-          <span>📱 Tel: 01-2345678</span>
+          <span>📍 Visit: Pasorido Integrated Services</span>
+          <span>📧 Email: support@pasorido.com</span>
+          <span>📱 Tel: 0806 6146 516</span>
         </div>
         <div className="mt-4 text-xs text-gray-400">
           Receipt ID: {data.transactionId} | Printed at: {new Date().toLocaleString()}
@@ -637,7 +637,9 @@ const QuickSale = () => {
     
     const element = document.createElement('a');
     const text = `
-Springcore Africa POS
+Paorido Integrated Services
+Main Branch, Azuba Lafia
+Tel: 0806 6146 516 |
 --------------------------------
 Receipt #: ${receiptData.transactionId}
 Date: ${receiptData.date}
@@ -656,8 +658,8 @@ Amount Paid: ${formatCurrency(receiptData.amountPaid)}
 Change: ${formatCurrency(receiptData.changeDue)}
 --------------------------------
 Thank you for your business!
-📞 Contact: 01-2345678
-📍 Location: Main Branch
+📞 Contact: 0806 6146 516
+📍 Location: Main Branch, Azuba Lafia
     `.trim();
     
     const file = new Blob([text], { type: 'text/plain' });
@@ -1381,7 +1383,7 @@ Thank you for your business!
               {/* Quick Receipt Preview */}
               <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="text-center mb-4">
-                  <h3 className="font-bold text-lg">Springcore Africa POS</h3>
+                  <h3 className="font-bold text-lg">Pasorido Integrated Services</h3>
                   <p className="text-sm text-gray-600">Transaction #{transactionId}</p>
                 </div>
                 <div className="space-y-2">

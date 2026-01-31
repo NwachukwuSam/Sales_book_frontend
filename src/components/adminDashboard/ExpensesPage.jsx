@@ -70,7 +70,7 @@ const ExpensesPage = () => {
   });
 
   // API Configuration
-  const API_BASE_URL = 'https://sales-system-production.up.railway.app/api';
+  const API_BASE_URL = 'https://sales-book.onrender.com/api';
   const EXPENSES_API = `${API_BASE_URL}/expenses`;
 
   // Constants from backend schema

@@ -37,7 +37,7 @@ const CashierSalesHistory = () => {
   });
   
   const itemsPerPage = 10;
-  const API_URL = 'https://sales-system-production.up.railway.app/api/sales';
+  const API_URL = 'https://sales-book.onrender.com/api/sales';
 
   // Filter options
   const filterOptions = [

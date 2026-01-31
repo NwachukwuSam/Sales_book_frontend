@@ -20,7 +20,7 @@ const CashierProfile = () => {
       }
 
       const response = await fetch(
-        "https://sales-system-production.up.railway.app/api/auth/me",
+        "https://sales-book.onrender.com/api/auth/me",
         {
           headers: {
             Authorization: `Bearer ${token}`,

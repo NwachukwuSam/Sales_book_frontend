@@ -29,7 +29,7 @@ const Report = () => {
   const [period, setPeriod] = useState('daily');
   const [currentTime, setCurrentTime] = useState('');
 
-  const API_BASE_URL = 'https://sales-system-production.up.railway.app/api';
+  const API_BASE_URL = 'https://sales-book.onrender.com/api';
 
   // Format currency
   const formatCurrency = (amount) => {

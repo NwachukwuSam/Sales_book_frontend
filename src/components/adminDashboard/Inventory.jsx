@@ -452,7 +452,7 @@ const Inventory = () => {
           throw new Error('No authentication token found. Please log in.');
         }
         
-        const response = await fetch('https://sales-system-production.up.railway.app/api/inventory', {
+        const response = await fetch('https://sales-book.onrender.com/api/inventory', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -522,7 +522,7 @@ const Inventory = () => {
 
       console.log('Updating item:', editItem.id, 'with data:', payload);
 
-      const response = await fetch(`https://sales-system-production.up.railway.app/api/inventory/${editItem.id}/update-price`, {
+      const response = await fetch(`https://sales-book.onrender.com/api/inventory/${editItem.id}/update-price`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -645,7 +645,7 @@ const Inventory = () => {
       
       console.log('Refilling item:', refillItem.id, 'with quantity:', quantityToAdd);
 
-      const response = await fetch(`https://sales-system-production.up.railway.app/api/inventory/${refillItem.id}/refill`, {
+      const response = await fetch(`https://sales-book.onrender.com/api/inventory/${refillItem.id}/refill`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -765,7 +765,7 @@ const Inventory = () => {
         sellingPrice: parseFloat(newItem.sellingPrice) || 0
       };
 
-      const response = await fetch('https://sales-system-production.up.railway.app/api/inventory', {
+      const response = await fetch('https://sales-book.onrender.com/api/inventory', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
