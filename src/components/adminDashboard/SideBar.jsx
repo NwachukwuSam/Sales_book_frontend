@@ -1,18 +1,17 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
   BarChart3,
-  ShoppingCart,
   Package,
   History,
   FileText,
-  Settings,
   LogOut,
   Menu,
   X,
   Users,
-  ShoppingBag
+  ChartNoAxesCombined,
+  ChartPie,
+  Landmark
 } from 'lucide-react';
 import logo from '../../assets/singleLogo.png';
 
@@ -57,7 +56,7 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
     { 
       id: 'reports', 
       label: 'Reports', 
-      icon: <FileText className="w-5 h-5" />,
+      icon: <ChartNoAxesCombined className="w-5 h-5" />,
       path: '/report'
     },
     { 
@@ -69,10 +68,15 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
     { 
       id: 'expenses', 
       label: 'Expenses', 
-      icon: <Settings className="w-5 h-5" />,
+      icon: <ChartPie className="w-5 h-5" />,
       path: '/expenses'
     },
-    
+    { 
+      id: 'profit', 
+      label: 'Profit', 
+      icon: <Landmark className="w-5 h-5" />,
+      path: '/profit'
+    },
   ];
 
   const getActiveSectionFromPath = () => {

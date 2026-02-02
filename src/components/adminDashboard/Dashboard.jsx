@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  BarChart3, 
   TrendingUp, 
   Users, 
   DollarSign, 
@@ -11,24 +10,26 @@ import {
   Loader2,
   RefreshCw,
   AlertCircle,
-  Database
+  Database,
+  Percent,
+  ArrowUpRight,
+  ArrowDownRight
 } from 'lucide-react';
 import TopNav from '../TopNav';
 import axios from 'axios';
 
-// Set base URL for all API calls
 const API_BASE_URL = 'https://sales-book.onrender.com/api';
 
 const Dashboard = () => {
   const [period, setPeriod] = useState('daily');
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [profitData, setProfitData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [rawResponse, setRawResponse] = useState(null);
 
-  // Format currency to Naira
   const formatCurrency = (amount) => {
     if (amount === null || amount === undefined || isNaN(amount)) return '₦0.00';
     
@@ -40,14 +41,45 @@ const Dashboard = () => {
     }).format(amount);
   };
 
-  // Format number with commas
   const formatNumber = (num) => {
     if (num === null || num === undefined || isNaN(num)) return '0';
     
     return new Intl.NumberFormat('en-NG').format(num);
   };
 
-  // Debug function to log response structure
+  const formatPercentage = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return '0.0%';
+    return `${value.toFixed(1)}%`;
+  };
+
+  const getProfitDateRange = () => {
+    const end = new Date();
+    const start = new Date();
+    
+    switch (period) {
+      case 'daily':
+        start.setHours(0, 0, 0, 0);
+        break;
+      case 'weekly':
+        start.setDate(end.getDate() - 7);
+        break;
+      case 'monthly':
+        start.setMonth(end.getMonth() - 1);
+        break;
+      case 'yearly':
+        start.setFullYear(end.getFullYear() - 1);
+        break;
+      default:
+        start.setHours(0, 0, 0, 0);
+    }
+    
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0]
+    };
+  };
+
+
   const debugResponse = (data, endpoint) => {
     console.log(`=== ${endpoint} Response ===`);
     console.log('Full response:', data);
@@ -55,18 +87,15 @@ const Dashboard = () => {
     if (data) {
       console.log('Keys:', Object.keys(data));
       
-      // Check if data is nested under 'analytics'
       const analyticsData = data.analytics || data;
       console.log('Analytics data:', analyticsData);
       
-      // Check for totalSales
       if (analyticsData.totalSales) {
         console.log('totalSales:', analyticsData.totalSales);
         console.log('totalSales type:', typeof analyticsData.totalSales);
         console.log('totalSales keys:', Object.keys(analyticsData.totalSales));
       }
       
-      // Check for topProducts
       if (analyticsData.topProducts) {
         console.log('topProducts:', analyticsData.topProducts);
         console.log('topProducts length:', analyticsData.topProducts.length);
@@ -78,7 +107,34 @@ const Dashboard = () => {
     }
   };
 
-  // Fetch main analytics data
+  const fetchProfitData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const dateRange = getProfitDateRange();
+      
+      console.log('Fetching profit data for:', dateRange);
+      
+      const response = await axios.get(
+        `${API_BASE_URL}/profit/analytics?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`,
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('Profit API Response:', response);
+      
+      if (response.data.success) {
+        setProfitData(response.data.data);
+        console.log('Profit data set:', response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching profit data:', error);
+    }
+  };
+
   const fetchAnalytics = async (showRefreshing = false) => {
     try {
       if (showRefreshing) {
@@ -102,16 +158,16 @@ const Dashboard = () => {
       console.log('Analytics API Response:', response);
       console.log('Response data:', response.data);
       
-      // FIX: Extract analytics from response.data.analytics OR use response.data directly
       const analyticsPayload = response.data.analytics || response.data;
       
       debugResponse(response.data, 'main-analytics');
       setRawResponse(response.data);
       
-      // Process the response data
       const processedData = processAnalyticsData(analyticsPayload);
       console.log('Processed data:', processedData);
       setAnalyticsData(processedData);
+      
+      await fetchProfitData();
       
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -125,7 +181,6 @@ const Dashboard = () => {
     }
   };
 
-  // Process and normalize analytics data
   const processAnalyticsData = (data) => {
     if (!data) {
       console.log('No data to process');
@@ -134,7 +189,6 @@ const Dashboard = () => {
     
     console.log('Processing analytics data:', data);
     
-    // Ensure all required fields exist
     const processed = {
       ...data,
       totalSales: data.totalSales || {
@@ -153,7 +207,6 @@ const Dashboard = () => {
       period: data.period || period
     };
     
-    // Ensure formatted values exist (fallback to client-side formatting)
     if (processed.totalSales && !processed.totalSales.formattedRevenue) {
       processed.totalSales.formattedRevenue = formatCurrency(processed.totalSales.totalRevenue || 0);
     }
@@ -165,7 +218,6 @@ const Dashboard = () => {
       processed.totalSales.formattedAverageTransaction = formatCurrency(avg);
     }
     
-    // Process top products - ensure formatted values exist
     if (processed.topProducts && processed.topProducts.length > 0) {
       processed.topProducts = processed.topProducts.map(product => ({
         ...product,
@@ -176,7 +228,6 @@ const Dashboard = () => {
       console.log('Processed products:', processed.topProducts);
     }
     
-    // Process cashier sales - ensure formatted values exist
     if (processed.cashierSales && processed.cashierSales.length > 0) {
       processed.cashierSales = processed.cashierSales.map(cashier => ({
         ...cashier,
@@ -192,7 +243,6 @@ const Dashboard = () => {
     return processed;
   };
 
-  // Fetch additional data for specific tabs
   const fetchAdditionalData = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -294,6 +344,7 @@ const Dashboard = () => {
   // Show raw data for debugging
   const showRawData = () => {
     console.log('Current analyticsData:', analyticsData);
+    console.log('Current profitData:', profitData);
     console.log('Raw API response:', rawResponse);
     
     if (rawResponse) {
@@ -332,7 +383,8 @@ const Dashboard = () => {
       <header className="mb-8 mt-5">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-      
+            <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
+            <p className="text-gray-600 mt-1">Track sales, profit, and performance metrics</p>
           </div>
           
           <div className="flex items-center space-x-4 w-full sm:w-auto">
@@ -344,7 +396,7 @@ const Dashboard = () => {
                   disabled={refreshing}
                   className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                     period === p
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-green-600 text-white'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   } ${refreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
@@ -355,7 +407,7 @@ const Dashboard = () => {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Refresh data"
             >
               {refreshing ? (
@@ -392,11 +444,11 @@ const Dashboard = () => {
 
       {/* Debug Info */}
       {analyticsData && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <Database className="h-5 w-5 text-blue-600 mr-2" />
-              <span className="text-blue-700 text-sm">
+              <Database className="h-5 w-5 text-green-600 mr-2" />
+              <span className="text-green-700 text-sm">
                 Loaded {analyticsData.totalSales?.totalTransactions || 0} transactions for {getPeriodDisplay(period)}
               </span>
             </div>
@@ -413,7 +465,7 @@ const Dashboard = () => {
               onClick={() => setActiveTab(tab)}
               className={`py-2 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-green-600 text-green-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -429,92 +481,74 @@ const Dashboard = () => {
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
             {/* Total Revenue Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-500 text-xs sm:text-sm">Total Revenue</p>
-                    <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 flex-shrink-0 ml-2" />
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-gray-800">
-                    {analyticsData.totalSales?.formattedRevenue || formatCurrency(analyticsData.totalSales?.totalRevenue || 0)}
-                  </h3>
-                  <div className="flex items-center justify-between mt-2 sm:mt-3 text-xs sm:text-sm">
-                    <span className="text-gray-600">
-                      {formatNumber(analyticsData.totalSales?.totalTransactions || 0)} transactions
-                    </span>
-                    <span className="text-green-600 font-medium">
-                      {getPeriodDisplay(period)}
-                    </span>
-                  </div>
-                </div>
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg p-4 sm:p-6 text-white">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-green-100 text-xs sm:text-sm font-medium">Total Revenue</p>
+                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-green-200 flex-shrink-0" />
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-2">
+                {analyticsData.totalSales?.formattedRevenue || formatCurrency(analyticsData.totalSales?.totalRevenue || 0)}
+              </h3>
+              <div className="flex items-center justify-between text-xs sm:text-sm text-green-100">
+                <span>
+                  {formatNumber(analyticsData.totalSales?.totalTransactions || 0)} transactions
+                </span>
+                <span className="font-medium">
+                  {getPeriodDisplay(period)}
+                </span>
               </div>
             </div>
 
-            {/* Total Items Sold Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-500 text-xs sm:text-sm">Items Sold</p>
-                    <ShoppingCart className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500 flex-shrink-0 ml-2" />
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-gray-800">
-                    {formatNumber(analyticsData.totalSales?.totalItemsSold || 0)}
-                  </h3>
-                  <div className="flex items-center justify-between mt-2 sm:mt-3 text-xs sm:text-sm">
-                    <span className="text-gray-600">
-                      Avg: {formatNumber(
-                        Math.round((analyticsData.totalSales?.totalItemsSold || 0) / 
-                        Math.max(analyticsData.totalSales?.totalTransactions || 1, 1))
-                      )} per transaction
-                    </span>
-                  </div>
-                </div>
+            {/* Total Profit Card */}
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-4 sm:p-6 text-white">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-blue-100 text-xs sm:text-sm font-medium">Total Profit</p>
+                <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-blue-200 flex-shrink-0" />
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-2">
+                {profitData?.summary ? formatCurrency(profitData.summary.totalProfit || 0) : formatCurrency(0)}
+              </h3>
+              <div className="flex items-center justify-between text-xs sm:text-sm text-blue-100">
+                <span>
+                  Margin: {profitData?.summary ? formatPercentage(profitData.summary.averageProfitMargin || 0) : '0.0%'}
+                </span>
+                {profitData?.summary && (
+                  profitData.summary.averageProfitMargin >= 25 ? (
+                    <ArrowUpRight className="w-4 h-4" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4" />
+                  )
+                )}
               </div>
             </div>
 
-            {/* Average Transaction Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-500 text-xs sm:text-sm">Avg. Transaction</p>
-                    <CreditCard className="h-6 w-6 sm:h-8 sm:w-8 text-purple-500 flex-shrink-0 ml-2" />
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-gray-800">
-                    {analyticsData.totalSales?.formattedAverageTransaction || 
-                     formatCurrency(
-                       (analyticsData.totalSales?.totalRevenue || 0) / 
-                       Math.max(analyticsData.totalSales?.totalTransactions || 1, 1)
-                     )}
-                  </h3>
-                  <div className="flex items-center justify-between mt-2 sm:mt-3 text-xs sm:text-sm">
-                    <span className="text-gray-600">
-                      Per transaction
-                    </span>
-                  </div>
-                </div>
+            {/* Total Cost Card */}
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-4 sm:p-6 text-white">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-purple-100 text-xs sm:text-sm font-medium">Total Cost</p>
+                <ShoppingCart className="h-6 w-6 sm:h-8 sm:w-8 text-purple-200 flex-shrink-0" />
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-2">
+                {profitData?.summary ? formatCurrency(profitData.summary.totalCost || 0) : formatCurrency(0)}
+              </h3>
+              <div className="flex items-center justify-between text-xs sm:text-sm text-purple-100">
+                <span>Cost of goods sold</span>
               </div>
             </div>
 
-            {/* Active Cashiers Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-500 text-xs sm:text-sm">Active Cashiers</p>
-                    <UserCheck className="h-6 w-6 sm:h-8 sm:w-8 text-orange-500 flex-shrink-0 ml-2" />
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-gray-800">
-                    {formatNumber(analyticsData.cashierSales?.length || 0)}
-                  </h3>
-                  <div className="flex items-center justify-between mt-2 sm:mt-3 text-xs sm:text-sm">
-                    <span className="text-gray-600">
-                      {formatNumber(analyticsData.topProducts?.length || 0)} top products
-                    </span>
-                  </div>
-                </div>
+            {/* Profit Margin Card */}
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-4 sm:p-6 text-white">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-orange-100 text-xs sm:text-sm font-medium">Profit Margin</p>
+                <Percent className="h-6 w-6 sm:h-8 sm:w-8 text-orange-200 flex-shrink-0" />
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-2">
+                {profitData?.summary ? formatPercentage(profitData.summary.averageProfitMargin || 0) : '0.0%'}
+              </h3>
+              <div className="flex items-center justify-between text-xs sm:text-sm text-orange-100">
+                <span>
+                  {profitData?.summary && profitData.summary.averageProfitMargin >= 25 ? 'Healthy margin' : 'Below target'}
+                </span>
               </div>
             </div>
           </div>
@@ -594,35 +628,32 @@ const Dashboard = () => {
               )}
             </div>
 
-            {/* Period Summary */}
+            {/* Most Profitable Item */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
               <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4">
-                Period Summary
+                Most Profitable Item
+                {refreshing && <Loader2 className="h-4 w-4 animate-spin inline ml-2" />}
               </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Period:</span>
-                  <span className="font-medium">{getPeriodDisplay(period)}</span>
+              {profitData?.itemPerformance?.[0] ? (
+                <div className="space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-700 text-sm sm:text-base">
+                      {profitData.itemPerformance[0].name}
+                    </span>
+                    <span className="text-green-600 font-bold text-sm sm:text-base">
+                      {formatCurrency(profitData.itemPerformance[0].profit)}
+                    </span>
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-600">
+                    Revenue: {formatCurrency(profitData.itemPerformance[0].revenue)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-500">
+                    Margin: {formatPercentage(profitData.itemPerformance[0].profitMargin)}
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Transactions:</span>
-                  <span className="font-medium">
-                    {formatNumber(analyticsData.totalSales?.totalTransactions || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Items Sold:</span>
-                  <span className="font-medium">
-                    {formatNumber(analyticsData.totalSales?.totalItemsSold || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Revenue:</span>
-                  <span className="font-medium">
-                    {formatCurrency(analyticsData.totalSales?.totalRevenue || 0)}
-                  </span>
-                </div>
-              </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No profit data available</p>
+              )}
             </div>
           </div>
         </>

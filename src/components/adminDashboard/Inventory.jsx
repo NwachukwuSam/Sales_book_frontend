@@ -299,7 +299,6 @@ const AddItemModal = ({ showModal, newItem, onInputChange, onSave, onCancel, isS
     onSave();
   };
 
-  // Check if item name already exists
   const itemExists = inventory.some(item => 
     item.name.toLowerCase() === newItem.name.trim().toLowerCase()
   );
@@ -442,6 +441,13 @@ const Inventory = () => {
     sellingPrice: ''
   });
 
+  // Helper function to determine stock label based on quantity
+  const getStockLabel = (quantity) => {
+    if (quantity <= 2) return 'Low Stock';
+    if (quantity >= 3 && quantity <= 9) return 'Running Low';
+    return 'Normal';
+  };
+
   useEffect(() => {
     const fetchInventory = async () => {
       try {
@@ -468,9 +474,7 @@ const Inventory = () => {
         const items = data.items || [];
         const transformedData = items.map(item => {
           const quantity = item.quantity || 0;
-          let stockLabel = 'Normal';
-          if (quantity <= 10) stockLabel = 'Low Stock';
-          else if (quantity <= 20) stockLabel = 'Running Low';
+          const stockLabel = getStockLabel(quantity);
           
           return {
             id: item._id,
@@ -671,11 +675,11 @@ const Inventory = () => {
 
       const oldQuantity = refillItem.quantity;
       const newQuantity = oldQuantity + quantityToAdd;
+      const updatedStockLabel = getStockLabel(newQuantity);
       
       setInventory(prevInventory => {
         return prevInventory.map(item => {
           if (item.id === refillItem.id) {
-            const updatedStockLabel = newQuantity <= 10 ? 'Low Stock' : newQuantity <= 20 ? 'Running Low' : 'Normal';
             return {
               ...item,
               quantity: newQuantity,
@@ -815,9 +819,7 @@ const Inventory = () => {
       const newBackendItem = data.item || data;
 
       const quantity = newBackendItem.quantity || 0;
-      let stockLabel = 'Normal';
-      if (quantity <= 10) stockLabel = 'Low Stock';
-      else if (quantity <= 20) stockLabel = 'Running Low';
+      const stockLabel = getStockLabel(quantity);
 
       const itemToAdd = {
         id: newBackendItem._id,

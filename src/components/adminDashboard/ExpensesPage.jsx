@@ -15,7 +15,6 @@ import {
   CheckCircle,
   X,
   Loader2,
-  ChevronDown,
   CreditCard,
   Building,
   FileDigit,
@@ -59,7 +58,7 @@ const ExpensesPage = () => {
     receiptNumber: '',
     vendorName: '',
     vendorContact: '',
-    department: 'General',
+    department: 'General', 
     notes: '',
     isRecurring: false,
     recurrence: {

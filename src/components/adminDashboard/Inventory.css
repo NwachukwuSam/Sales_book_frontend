@@ -532,7 +532,7 @@ td.actions-column {
 /* Stock Label Badges */
 .stock-label-badge {
   display: inline-block;
-  padding: 4px 30px;
+  padding: 4px 20px;
   border-radius: 12px;
   font-size: 10px;
   font-weight: 600;

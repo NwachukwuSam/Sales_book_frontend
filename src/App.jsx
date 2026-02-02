@@ -25,6 +25,7 @@ import ProfilePage from './components/adminDashboard/ProfilePage';
 import CashierProfile from './components/cashierDashboard/CashierProfile';
 import POSPage from './components/cashierDashboard/POSPage';
 import ExpensesPage from './components/adminDashboard/ExpensesPage';
+import Profit from './components/adminDashboard/Profit';
 
 function App() {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -121,6 +122,13 @@ function App() {
           <ProtectedRoute allowedRoles={['admin']}>
             <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
               <Report/>
+            </Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/profit" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
+              <Profit/>
             </Layout>
           </ProtectedRoute>
         } />
