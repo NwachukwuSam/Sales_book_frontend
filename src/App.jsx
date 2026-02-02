@@ -34,12 +34,10 @@ function App() {
     <AuthProvider>
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+      
         <Route path="/" element={<WelcomeTwo />} />
         <Route path="/login" element={<Login />} />
      
-
-        {/* Admin Routes - Protected */}
         <Route path="/admin-dashboard" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <Layout activeSection={activeSection} setActiveSection={setActiveSection}>
