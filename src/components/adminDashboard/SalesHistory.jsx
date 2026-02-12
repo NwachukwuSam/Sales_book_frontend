@@ -282,27 +282,32 @@ const SalesHistory = () => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffTime = Math.abs(now - date);
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 0) {
-        return `Today, ${format(date, 'h:mm a')}`;
-      } else if (diffDays === 1) {
-        return `Yesterday, ${format(date, 'h:mm a')}`;
-      } else if (diffDays < 7) {
-        return `${diffDays} days ago`;
-      } else {
-        return format(date, 'MMM d, yyyy');
-      }
-    } catch (err) {
-      return dateString;
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    
+    // Reset time to midnight for accurate day comparison
+    const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Calculate difference in days based on calendar days, not 24-hour periods
+    const diffTime = todayOnly - dateOnly;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return `Today, ${format(date, 'h:mm a')}`;
+    } else if (diffDays === 1) {
+      return `Yesterday, ${format(date, 'h:mm a')}`;
+    } else if (diffDays > 1 && diffDays < 7) {
+      return `${diffDays} days ago`;
+    } else {
+      return format(date, 'MMM d, yyyy');
     }
-  };
-
+  } catch (err) {
+    return dateString;
+  }
+};
   const getPaymentColor = (paymentMethod) => {
     if (!paymentMethod) return 'bg-gray-50 text-gray-700 border border-gray-200';
     if (paymentMethod.includes('Cash')) return 'bg-green-50 text-green-700 border border-green-200';
