@@ -21,7 +21,8 @@ import {
   Target,
   Scale,
   TrendingDown,
-  Shield
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 
 const Profit = () => {
@@ -29,8 +30,8 @@ const Profit = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: '',
+    endDate: ''
   });
   const [currentTime, setCurrentTime] = useState('');
   const [selectedTab, setSelectedTab] = useState('overview');
@@ -43,6 +44,15 @@ const Profit = () => {
   const getLagosTime = () => {
     const now = new Date();
     return new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+  };
+
+  // Get Lagos date string in YYYY-MM-DD format
+  const getLagosDateString = (date) => {
+    const lagosTime = new Date(date.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+    const year = lagosTime.getFullYear();
+    const month = String(lagosTime.getMonth() + 1).padStart(2, '0');
+    const day = String(lagosTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // Format currency
@@ -77,7 +87,80 @@ const Profit = () => {
     setCurrentTime(`${hours}:${minutes}:${seconds} WAT`);
   };
 
-  // Fetch profit data
+  // Quick date range selectors - FIXED
+  const setQuickRange = (range) => {
+    const lagosNow = getLagosTime();
+    const start = new Date(lagosNow);
+    const end = new Date(lagosNow);
+    
+    switch (range) {
+      case 'today':
+        // Set to beginning of today in Lagos time
+        start.setHours(0, 0, 0, 0);
+        // Set end to end of today
+        end.setHours(23, 59, 59, 999);
+        break;
+      case 'week':
+        start.setDate(lagosNow.getDate() - 7);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case 'month':
+        start.setMonth(lagosNow.getMonth() - 1);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case 'year':
+        start.setFullYear(lagosNow.getFullYear() - 1);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      default:
+        return;
+    }
+    
+    setDateRange({
+      startDate: getLagosDateString(start),
+      endDate: getLagosDateString(end)
+    });
+  };
+
+  // Get date range text - FIXED
+  const getDateRangeText = () => {
+    if (!dateRange.startDate || !dateRange.endDate) return '';
+    
+    const start = new Date(dateRange.startDate + 'T12:00:00');
+    const end = new Date(dateRange.endDate + 'T12:00:00');
+    
+    return `${start.toLocaleDateString('en-NG', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    })} - ${end.toLocaleDateString('en-NG', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    })}`;
+  };
+
+  // Initialize date range on component mount - FIXED
+  useEffect(() => {
+    const lagosNow = getLagosTime();
+    const thirtyDaysAgo = new Date(lagosNow);
+    thirtyDaysAgo.setDate(lagosNow.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+    
+    setDateRange({
+      startDate: getLagosDateString(thirtyDaysAgo),
+      endDate: getLagosDateString(lagosNow)
+    });
+    
+    updateCurrentTime();
+    const timerId = setInterval(updateCurrentTime, 1000);
+    return () => clearInterval(timerId);
+  }, []);
+
+  // Fetch profit data - FIXED with proper date handling
   const fetchProfitData = async () => {
     try {
       setLoading(true);
@@ -89,9 +172,24 @@ const Profit = () => {
         throw new Error('No authentication token found. Please log in.');
       }
 
-      // Fetch profit analytics
+      // Create start and end dates with proper boundaries
+      const startDateObj = new Date(dateRange.startDate + 'T00:00:00');
+      const endDateObj = new Date(dateRange.endDate + 'T23:59:59');
+      
+      // Convert to UTC for consistent backend handling
+      const startDateUTC = startDateObj.toISOString();
+      const endDateUTC = endDateObj.toISOString();
+
+      console.log('Fetching profit data for period:', {
+        localStart: dateRange.startDate,
+        localEnd: dateRange.endDate,
+        utcStart: startDateUTC,
+        utcEnd: endDateUTC
+      });
+
+      // Fetch profit analytics - send UTC dates
       const response = await fetch(
-        `${API_BASE_URL}/profit/analytics?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`,
+        `${API_BASE_URL}/profit/analytics?startDate=${encodeURIComponent(startDateUTC)}&endDate=${encodeURIComponent(endDateUTC)}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -109,7 +207,7 @@ const Profit = () => {
       if (result.success) {
         setProfitData(result.data);
         // Fetch expenses for net profit calculation
-        fetchExpensesData(token);
+        fetchExpensesData(token, startDateUTC, endDateUTC);
       } else {
         throw new Error(result.message || 'Failed to load profit data');
       }
@@ -122,15 +220,15 @@ const Profit = () => {
     }
   };
 
-  // Fetch expenses data for net profit calculation
-  const fetchExpensesData = async (token) => {
+  // Fetch expenses data with proper date handling - FIXED
+  const fetchExpensesData = async (token, startDateUTC, endDateUTC) => {
     try {
       setExpensesLoading(true);
       
-      // Build query parameters for expenses in the same date range
+      // Build query parameters with UTC dates
       const params = new URLSearchParams({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
+        startDate: startDateUTC,
+        endDate: endDateUTC,
         status: 'Paid' // Only include paid expenses for net profit calculation
       });
 
@@ -163,12 +261,24 @@ const Profit = () => {
 
     const summary = profitData.summary;
     
+    // DATA VALIDATION - Check if COGS is higher than revenue (which shouldn't happen)
+    const hasDataIssue = summary.totalCost > summary.totalRevenue;
+    
+    // Log warning to console for debugging
+    if (hasDataIssue) {
+      console.warn('⚠️ DATA INTEGRITY WARNING:');
+      console.warn('Total Cost of Goods Sold is higher than Total Revenue');
+      console.warn('Revenue:', summary.totalRevenue);
+      console.warn('COGS:', summary.totalCost);
+      console.warn('Profit:', summary.totalProfit);
+    }
+    
     // Calculate total expenses for the period
     const totalExpenses = expenses
       .filter(exp => exp.status === 'Paid')
       .reduce((sum, exp) => sum + (exp.amount || 0), 0);
 
-    // Gross Profit = Total Revenue - Cost of Goods Sold (already in summary.totalCost)
+    // Gross Profit = Total Revenue - Cost of Goods Sold
     const grossProfit = summary.totalRevenue - summary.totalCost;
     
     // Gross Profit Margin
@@ -212,52 +322,10 @@ const Profit = () => {
       totalExpenses,
       expenseRatio,
       expenseByCategory: sortedExpenseCategories,
-      topExpenses: sortedExpenseCategories.slice(0, 5)
+      topExpenses: sortedExpenseCategories.slice(0, 5),
+      hasDataIssue,
+      backendProfit: summary.totalProfit || 0
     };
-  };
-
-  // Get date range text
-  const getDateRangeText = () => {
-    const start = new Date(dateRange.startDate);
-    const end = new Date(dateRange.endDate);
-    
-    return `${start.toLocaleDateString('en-NG', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    })} - ${end.toLocaleDateString('en-NG', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    })}`;
-  };
-
-  // Quick date range selectors
-  const setQuickRange = (range) => {
-    const end = new Date();
-    const start = new Date();
-    
-    switch (range) {
-      case 'today':
-        start.setHours(0, 0, 0, 0);
-        break;
-      case 'week':
-        start.setDate(end.getDate() - 7);
-        break;
-      case 'month':
-        start.setMonth(end.getMonth() - 1);
-        break;
-      case 'year':
-        start.setFullYear(end.getFullYear() - 1);
-        break;
-      default:
-        return;
-    }
-    
-    setDateRange({
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0]
-    });
   };
 
   // Export data as CSV
@@ -288,7 +356,6 @@ const Profit = () => {
       }
     }
     
-    // Rest of the export code remains the same...
     if (selectedTab === 'items' && profitData.itemPerformance) {
       csv += 'PROFIT PER ITEM\n';
       csv += 'Item Name,Units Sold,Revenue,Profit,Profit Margin,Avg Profit/Unit\n';
@@ -319,17 +386,14 @@ const Profit = () => {
     document.body.removeChild(a);
   };
 
+  // Fetch data when date range changes
   useEffect(() => {
-    fetchProfitData();
+    if (dateRange.startDate && dateRange.endDate) {
+      fetchProfitData();
+    }
   }, [dateRange]);
 
-  useEffect(() => {
-    updateCurrentTime();
-    const timerId = setInterval(updateCurrentTime, 1000);
-    return () => clearInterval(timerId);
-  }, []);
-
-  if (loading) {
+  if (loading && !profitData) {
     return (
       <div className="min-h-screen bg-gray-50">
         <TopNav />
@@ -397,6 +461,34 @@ const Profit = () => {
     <div className="min-h-screen bg-gray-50">
       <TopNav />
       <div className="max-w-7xl mx-auto p-4 md:p-6">
+        {/* Data Integrity Warning - Show if COGS > Revenue */}
+        {profitMetrics?.hasDataIssue && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-bold text-red-800 mb-2">Data Integrity Warning</h3>
+                <p className="text-red-700 text-sm mb-3">
+                  Your Cost of Goods Sold ({formatCurrency(summary.totalCost)}) is higher than your Total Revenue ({formatCurrency(summary.totalRevenue)}). 
+                  This indicates incorrect product pricing in your inventory database.
+                </p>
+                <div className="bg-red-100 rounded p-3 mb-3">
+                  <p className="font-semibold text-red-800 text-sm mb-1">Common causes:</p>
+                  <ul className="text-red-700 text-sm list-disc ml-5 space-y-1">
+                    <li>Products with <strong>Cost Price</strong> higher than <strong>Selling Price</strong></li>
+                    <li>Incorrect cost prices entered in inventory</li>
+                    <li>Selling prices not updated after cost increases</li>
+                    <li>Data entry errors in product database</li>
+                  </ul>
+                </div>
+                <p className="text-red-700 text-sm font-medium">
+                  ⚠️ Action Required: Review your product pricing in the Inventory section and ensure all items have selling prices higher than cost prices.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-6">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -434,7 +526,7 @@ const Profit = () => {
             </div>
           </div>
 
-          {/* Date Range Selector */}
+          {/* Date Range Selector - FIXED with proper Lagos time handling */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <input
@@ -524,15 +616,27 @@ const Profit = () => {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+              <div className={`bg-gradient-to-br rounded-xl shadow-lg p-6 text-white ${
+                profitMetrics?.hasDataIssue 
+                  ? 'from-red-500 to-red-600' 
+                  : 'from-purple-500 to-purple-600'
+              }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-purple-100 text-sm font-medium">Total Cost</p>
-                  <ShoppingBag className="w-8 h-8 text-purple-200" />
+                  <p className={`text-sm font-medium ${
+                    profitMetrics?.hasDataIssue ? 'text-red-100' : 'text-purple-100'
+                  }`}>
+                    Total Cost {profitMetrics?.hasDataIssue && '⚠️'}
+                  </p>
+                  <ShoppingBag className={`w-8 h-8 ${
+                    profitMetrics?.hasDataIssue ? 'text-red-200' : 'text-purple-200'
+                  }`} />
                 </div>
                 <h3 className="text-3xl font-bold mb-2">{formatCurrency(summary.totalCost || 0)}</h3>
-                <div className="flex items-center gap-1 text-purple-100 text-sm">
+                <div className={`flex items-center gap-1 text-sm ${
+                  profitMetrics?.hasDataIssue ? 'text-red-100' : 'text-purple-100'
+                }`}>
                   <BarChart3 className="w-4 h-4" />
-                  <span>Cost of goods sold</span>
+                  <span>{profitMetrics?.hasDataIssue ? 'Exceeds revenue!' : 'Cost of goods sold'}</span>
                 </div>
               </div>
 
@@ -558,7 +662,7 @@ const Profit = () => {
               </div>
             </div>
 
-            {/* GROSS & NET PROFIT CALCULATION SECTION - NEW */}
+            {/* GROSS & NET PROFIT CALCULATION SECTION */}
             {profitMetrics && (
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -586,7 +690,11 @@ const Profit = () => {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">Cost of Goods Sold</span>
-                        <span className="font-medium text-red-600">-{formatCurrency(summary.totalCost)}</span>
+                        <span className={`font-medium ${
+                          profitMetrics.hasDataIssue ? 'text-red-600' : 'text-gray-800'
+                        }`}>
+                          -{formatCurrency(summary.totalCost)}
+                        </span>
                       </div>
                       <div className="pt-4 border-t border-gray-200">
                         <div className="flex justify-between items-center">
@@ -620,14 +728,14 @@ const Profit = () => {
                         </div>
                         <h3 className="font-bold text-gray-800">Operating Expenses</h3>
                       </div>
-                      <span className="text-sm text-gray-500">Total: {formatCurrency(profitMetrics.totalExpenses)}</span>
+                      <span className="text-sm text-gray-500">{formatCurrency(profitMetrics.totalExpenses)}</span>
                     </div>
                     
                     <div className="space-y-3">
                       {expensesLoading ? (
                         <div className="flex items-center justify-center py-4">
                           <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                          <span className="ml-2 text-gray-500">Loading expenses...</span>
+                          <span className="ml-2 text-gray-500">Loading...</span>
                         </div>
                       ) : profitMetrics.topExpenses.length > 0 ? (
                         <>
@@ -646,7 +754,7 @@ const Profit = () => {
                           ))}
                           <div className="pt-3 border-t border-gray-200">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-600">Expense to Revenue Ratio</span>
+                              <span className="text-sm text-gray-600">Expense Ratio</span>
                               <span className={`text-sm font-medium ${
                                 profitMetrics.expenseRatio <= 30 ? 'text-green-600' :
                                 profitMetrics.expenseRatio <= 50 ? 'text-yellow-600' :
@@ -675,13 +783,17 @@ const Profit = () => {
                         </div>
                         <h3 className="font-bold text-gray-800">Net Profit</h3>
                       </div>
-                      <span className="text-sm text-gray-500">Gross Profit - Expenses</span>
+                      <span className="text-sm text-gray-500">GP - Expenses</span>
                     </div>
                     
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">Gross Profit</span>
-                        <span className="font-medium text-green-600">{formatCurrency(profitMetrics.grossProfit)}</span>
+                        <span className={`font-medium ${
+                          profitMetrics.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {formatCurrency(profitMetrics.grossProfit)}
+                        </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">Total Expenses</span>
@@ -697,7 +809,7 @@ const Profit = () => {
                           </span>
                         </div>
                         <div className="flex justify-between items-center mt-2">
-                          <span className="text-gray-600">Net Profit Margin</span>
+                          <span className="text-gray-600">Net Margin</span>
                           <span className={`font-bold ${
                             profitMetrics.netProfitMargin >= 15 ? 'text-green-600' :
                             profitMetrics.netProfitMargin >= 10 ? 'text-yellow-600' :
@@ -713,24 +825,40 @@ const Profit = () => {
 
                 {/* Profit Analysis Summary */}
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 rounded-lg p-4">
+                  <div className={`bg-gradient-to-r border rounded-lg p-4 ${
+                    profitMetrics.hasDataIssue 
+                      ? 'from-red-50 to-red-100 border-red-200' 
+                      : 'from-green-50 to-emerald-50 border-green-100'
+                  }`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <Shield className="w-4 h-4 text-green-600" />
-                      <h4 className="font-semibold text-green-800">Profit Health Score</h4>
+                      <Shield className={`w-4 h-4 ${
+                        profitMetrics.hasDataIssue ? 'text-red-600' : 'text-green-600'
+                      }`} />
+                      <h4 className={`font-semibold ${
+                        profitMetrics.hasDataIssue ? 'text-red-800' : 'text-green-800'
+                      }`}>
+                        Profit Health
+                      </h4>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="text-3xl font-bold text-green-600">
-                        {profitMetrics.netProfitMargin >= 20 ? 'A' :
+                      <div className={`text-3xl font-bold ${
+                        profitMetrics.hasDataIssue ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {profitMetrics.hasDataIssue ? 'F' :
+                         profitMetrics.netProfitMargin >= 20 ? 'A' :
                          profitMetrics.netProfitMargin >= 15 ? 'B' :
                          profitMetrics.netProfitMargin >= 10 ? 'C' :
                          profitMetrics.netProfitMargin >= 5 ? 'D' : 'F'}
                       </div>
-                      <div className="text-sm text-green-700">
-                        {profitMetrics.netProfitMargin >= 20 ? 'Excellent - Highly profitable' :
-                         profitMetrics.netProfitMargin >= 15 ? 'Good - Healthy margins' :
-                         profitMetrics.netProfitMargin >= 10 ? 'Fair - Room for improvement' :
-                         profitMetrics.netProfitMargin >= 5 ? 'Needs attention - Low margins' :
-                         'Critical - Review expenses & pricing'}
+                      <div className={`text-sm ${
+                        profitMetrics.hasDataIssue ? 'text-red-700' : 'text-green-700'
+                      }`}>
+                        {profitMetrics.hasDataIssue ? 'Data error - Fix pricing' :
+                         profitMetrics.netProfitMargin >= 20 ? 'Excellent' :
+                         profitMetrics.netProfitMargin >= 15 ? 'Good' :
+                         profitMetrics.netProfitMargin >= 10 ? 'Fair' :
+                         profitMetrics.netProfitMargin >= 5 ? 'Needs attention' :
+                         'Critical'}
                       </div>
                     </div>
                   </div>
@@ -748,10 +876,10 @@ const Profit = () => {
                          'Poor'}
                       </div>
                       <div className="text-sm text-blue-700">
-                        {profitMetrics.expenseRatio <= 20 ? 'Very efficient expense management' :
-                         profitMetrics.expenseRatio <= 30 ? 'Good expense control' :
-                         profitMetrics.expenseRatio <= 40 ? 'Moderate expense levels' :
-                         'High expenses relative to revenue'}
+                        {profitMetrics.expenseRatio <= 20 ? 'Very efficient' :
+                         profitMetrics.expenseRatio <= 30 ? 'Good control' :
+                         profitMetrics.expenseRatio <= 40 ? 'Moderate levels' :
+                         'High expenses'}
                       </div>
                     </div>
                   </div>
@@ -763,7 +891,7 @@ const Profit = () => {
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-purple-700">Net to Gross Ratio</span>
+                        <span className="text-sm text-purple-700">Net/Gross</span>
                         <span className="font-bold text-purple-800">
                           {(profitMetrics.grossProfit > 0 
                             ? (profitMetrics.netProfit / profitMetrics.grossProfit) * 100 
@@ -771,7 +899,7 @@ const Profit = () => {
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-purple-700">Expense Coverage</span>
+                        <span className="text-sm text-purple-700">Coverage</span>
                         <span className="font-bold text-purple-800">
                           {(profitMetrics.totalExpenses > 0 
                             ? (profitMetrics.grossProfit / profitMetrics.totalExpenses) * 100 

@@ -41,6 +41,14 @@ const Dashboard = () => {
     }).format(amount);
   };
 
+  const getLagosDateString = (date) => {
+  const lagosTime = new Date(date.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+  const year = lagosTime.getFullYear();
+  const month = String(lagosTime.getMonth() + 1).padStart(2, '0');
+  const day = String(lagosTime.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
   const formatNumber = (num) => {
     if (num === null || num === undefined || isNaN(num)) return '0';
     
@@ -51,34 +59,41 @@ const Dashboard = () => {
     if (value === null || value === undefined || isNaN(value)) return '0.0%';
     return `${value.toFixed(1)}%`;
   };
-
-  const getProfitDateRange = () => {
-    const end = new Date();
-    const start = new Date();
-    
-    switch (period) {
-      case 'daily':
-        start.setHours(0, 0, 0, 0);
-        break;
-      case 'weekly':
-        start.setDate(end.getDate() - 7);
-        break;
-      case 'monthly':
-        start.setMonth(end.getMonth() - 1);
-        break;
-      case 'yearly':
-        start.setFullYear(end.getFullYear() - 1);
-        break;
-      default:
-        start.setHours(0, 0, 0, 0);
-    }
-    
-    return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0]
-    };
+  
+const getProfitDateRange = () => {
+  const lagosNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+  const start = new Date(lagosNow);
+  const end = new Date(lagosNow);
+  
+  switch (period) {
+    case 'daily':
+      // TODAY ONLY - set to Lagos date boundaries
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'weekly':
+      start.setDate(lagosNow.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'monthly':
+      start.setMonth(lagosNow.getMonth() - 1);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'yearly':
+      start.setFullYear(lagosNow.getFullYear() - 1);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+  }
+  
+  // Return ISO strings for backend
+  return {
+    startDate: start.toISOString(),
+    endDate: end.toISOString()
   };
-
+};
 
   const debugResponse = (data, endpoint) => {
     console.log(`=== ${endpoint} Response ===`);
@@ -107,33 +122,42 @@ const Dashboard = () => {
     }
   };
 
-  const fetchProfitData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const dateRange = getProfitDateRange();
-      
-      console.log('Fetching profit data for:', dateRange);
-      
-      const response = await axios.get(
-        `${API_BASE_URL}/profit/analytics?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`,
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+
+const fetchProfitData = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const dateRange = getProfitDateRange();
+    
+    console.log('=== PROFIT DATA FETCH ===');
+    console.log('Period:', period);
+    console.log('Lagos Now:', new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+    console.log('Start (Lagos):', new Date(dateRange.startDate).toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+    console.log('End (Lagos):', new Date(dateRange.endDate).toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+    console.log('Start (UTC):', dateRange.startDate);
+    console.log('End (UTC):', dateRange.endDate);
+    
+    const response = await axios.get(
+      `${API_BASE_URL}/profit/analytics?startDate=${encodeURIComponent(dateRange.startDate)}&endDate=${encodeURIComponent(dateRange.endDate)}`,
+      {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      );
-      
-      console.log('Profit API Response:', response);
-      
-      if (response.data.success) {
-        setProfitData(response.data.data);
-        console.log('Profit data set:', response.data.data);
       }
-    } catch (error) {
-      console.error('Error fetching profit data:', error);
+    );
+    
+    console.log('Profit API Response:', response.data);
+    
+    if (response.data.success) {
+      setProfitData(response.data.data);
+      console.log('✅ Profit data set successfully');
+      console.log('Transactions in period:', response.data.data.summary?.totalTransactions);
+      console.log('Cost in period:', response.data.data.summary?.totalCost);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching profit data:', error);
+  }
+};
 
   const fetchAnalytics = async (showRefreshing = false) => {
     try {
