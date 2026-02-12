@@ -282,32 +282,33 @@ const SalesHistory = () => {
   };
 
   const formatDate = (dateString) => {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    
-    // Reset time to midnight for accurate day comparison
-    const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    // Calculate difference in days based on calendar days, not 24-hour periods
-    const diffTime = todayOnly - dateOnly;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return `Today, ${format(date, 'h:mm a')}`;
-    } else if (diffDays === 1) {
-      return `Yesterday, ${format(date, 'h:mm a')}`;
-    } else if (diffDays > 1 && diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else {
-      return format(date, 'MMM d, yyyy');
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      
+      // Reset time to midnight for accurate day comparison
+      const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Calculate difference in days based on calendar days, not 24-hour periods
+      const diffTime = todayOnly - dateOnly;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return `Today, ${format(date, 'h:mm a')}`;
+      } else if (diffDays === 1) {
+        return `Yesterday, ${format(date, 'h:mm a')}`;
+      } else if (diffDays > 1 && diffDays < 7) {
+        return `${diffDays} days ago`;
+      } else {
+        return format(date, 'MMM d, yyyy');
+      }
+    } catch (err) {
+      return dateString;
     }
-  } catch (err) {
-    return dateString;
-  }
-};
+  };
+
   const getPaymentColor = (paymentMethod) => {
     if (!paymentMethod) return 'bg-gray-50 text-gray-700 border border-gray-200';
     if (paymentMethod.includes('Cash')) return 'bg-green-50 text-green-700 border border-green-200';
@@ -330,12 +331,13 @@ const SalesHistory = () => {
   };
 
   const calculateSummary = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
     const todaySales = salesData.filter(sale => {
       const saleDate = new Date(sale.createdAt || sale.timestamp);
-      return saleDate >= today;
+      const saleDateOnly = new Date(saleDate.getFullYear(), saleDate.getMonth(), saleDate.getDate());
+      return saleDateOnly.getTime() === today.getTime();
     }).reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
     
     const totalSales = salesData.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
@@ -741,45 +743,52 @@ const SalesHistory = () => {
                     </td>
                   </tr>
                 ) : (
-                  salesData.map((sale) => (
-                    <tr key={sale._id || sale.transactionId} className="hover:bg-gray-50">
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span className="font-medium text-gray-900">
-                          {sale.transactionId?.slice(-6) || sale._id?.slice(-6)}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2">
-                        <span className="text-gray-900 truncate block max-w-[100px]">
-                          {sale.item?.name || 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-700">
-                          {sale.quantity || 0}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span className="font-semibold text-gray-900">
-                          {formatCurrency(sale.totalAmount)}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-medium ${getPaymentColor(sale.paymentMethod)}`}>
-                          {sale.paymentMethod?.split('-')[0] || 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span className="text-gray-900">
-                          {formatDate(sale.createdAt)?.split(',')[0]}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <button className="p-1 hover:bg-gray-100 rounded">
-                          <MoreVertical className="w-4 h-4 text-gray-500" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  salesData.map((sale) => {
+                    const displayItem = sale.items?.[0]?.name || 'Unknown';
+                    const itemCount = sale.items?.length || 0;
+                    const totalQuantity = sale.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+                    
+                    return (
+                      <tr key={sale._id || sale.transactionId} className="hover:bg-gray-50">
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <span className="font-medium text-gray-900">
+                            {sale.transactionId?.slice(-6) || sale._id?.slice(-6)}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2">
+                          <span className="text-gray-900 truncate block max-w-[100px]">
+                            {displayItem}
+                            {itemCount > 1 && ` +${itemCount - 1}`}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-700">
+                            {totalQuantity}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <span className="font-semibold text-gray-900">
+                            {formatCurrency(sale.totalAmount)}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-medium ${getPaymentColor(sale.paymentMethod)}`}>
+                            {sale.paymentMethod?.split('-')[0] || 'Unknown'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <span className="text-gray-900">
+                            {formatDate(sale.createdAt)?.split(',')[0]}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <button className="p-1 hover:bg-gray-100 rounded">
+                            <MoreVertical className="w-4 h-4 text-gray-500" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -793,50 +802,63 @@ const SalesHistory = () => {
               <div className="text-gray-500">No sales records found</div>
             </div>
           ) : (
-            salesData.map((sale) => (
-              <div key={sale._id || sale.transactionId} className="bg-white rounded border border-gray-200 p-3">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <div className="flex items-center space-x-1 mb-0.5">
-                      <span className="font-medium text-gray-900 text-xs">
-                        {sale.transactionId?.slice(-6) || sale._id?.slice(-6)}
-                      </span>
-                      <span className="text-xs text-gray-500">•</span>
-                      <span className="text-xs text-gray-600">
-                        {formatDate(sale.createdAt)}
-                      </span>
+            salesData.map((sale) => {
+              // Get items list for display
+              const itemsList = sale.items?.map(item => item.name).filter(Boolean).join(', ') || 'Unknown Item';
+              const displayItem = sale.items?.[0]?.name || 'Unknown Item';
+              const itemCount = sale.items?.length || 0;
+              const totalQuantity = sale.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+              
+              return (
+                <div key={sale._id || sale.transactionId} className="bg-white rounded border border-gray-200 p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-1 mb-0.5">
+                        <span className="font-medium text-gray-900 text-xs">
+                          {sale.transactionId?.slice(-6) || sale._id?.slice(-6)}
+                        </span>
+                        <span className="text-xs text-gray-500">•</span>
+                        <span className="text-xs text-gray-600">
+                          {formatDate(sale.createdAt)}
+                        </span>
+                      </div>
+                      <div className="text-xs font-medium text-gray-900 truncate">
+                        {displayItem}
+                        {itemCount > 1 && (
+                          <span className="text-gray-500 ml-1">
+                            +{itemCount - 1} more
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-xs font-medium text-gray-900 block truncate">
-                      {sale.item?.name || 'Unknown Item'}
+                    <span className={`px-1.5 py-0.5 rounded text-xs whitespace-nowrap ml-2 ${getPaymentColor(sale.paymentMethod)}`}>
+                      {sale.paymentMethod?.includes('Cash') ? 'Cash' : sale.paymentMethod?.includes('POS') ? 'POS' : 'Transfer'}
                     </span>
                   </div>
-                  <span className={`px-1.5 py-0.5 rounded text-xs ${getPaymentColor(sale.paymentMethod)}`}>
-                    {sale.paymentMethod?.includes('Cash') ? 'Cash' : sale.paymentMethod?.includes('POS') ? 'POS' : 'Transfer'}
-                  </span>
-                </div>
 
-                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-1">
-                      <User className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-600">
-                        {sale.soldBy?.name || sale.soldBy?.username || 'Unknown'}
-                      </span>
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-1">
+                        <User className="w-3 h-3 text-gray-400" />
+                        <span className="text-xs text-gray-600 truncate max-w-[80px]">
+                          {sale.soldBy?.name || sale.soldBy?.username || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                          {totalQuantity} pcs
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
-                        {sale.quantity || 0} pcs
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-gray-900 text-sm">
-                      {formatCurrency(sale.totalAmount)}
+                    <div className="text-right">
+                      <div className="font-semibold text-gray-900 text-sm">
+                        {formatCurrency(sale.totalAmount)}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
